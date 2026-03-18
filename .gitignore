@@ -1,0 +1,29 @@
+
+# Ignore compiled Python files
+*.pyc
+*.pyo
+
+# Ignore virtualenv directories
+.venv
+.env
+.eggs
+.dist
+.build
+
+
+# Ignore IDE files
+*.iml
+.idea
+.vscode
+.ruff_cache
+__pycache__
+
+# Ignore other files
+.env
+.env.example
+.env.test
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.sample
