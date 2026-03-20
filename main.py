@@ -12,7 +12,14 @@ from benchmark.benchmark import (
     StockStrategy,
     SimulationService,
 )
-from models.models import FiiMetrics, StockMetrics, UserProfile, SimulationRequest
+from models.models import (
+    FiiMetrics,
+    StockMetrics,
+    UserProfile,
+    SimulationRequest,
+    ChatRequest,
+    ChatResponse,
+)
 
 load_dotenv()
 
@@ -100,6 +107,27 @@ async def simulate_portfolio(request: SimulationRequest):
         return SimulationService.simulate(request)
     except Exception as e:
         fastapi_logger.error(f"Erro na simulação: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/chat")
+async def chat_portfolio(request: ChatRequest):
+    """
+    Chat inteligente baseado no contexto real da carteira.
+    """
+    try:
+        result = await AIAnalysisService.chat_with_ai(
+            question=request.question,
+            profile_plan=request.profile_plan or "free",
+            context=request.context or {},
+        )
+        answer = result.get("answer")
+        if not answer:
+            raw = result.get("raw_response")
+            answer = raw if isinstance(raw, str) and raw.strip() else "Não consegui gerar resposta agora."
+        return {"answer": str(answer)}
+    except Exception as e:
+        fastapi_logger.error(f"Erro no chat: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/health")

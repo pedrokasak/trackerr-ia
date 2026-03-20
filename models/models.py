@@ -122,3 +122,13 @@ class AiAnalysisResult(BaseModel):
     risk_assessment: str
     rebalancing: Optional[RebalancingResponse] = None
     smart_feed: List[FeedItem] = Field(default_factory=list)
+
+
+class ChatRequest(BaseModel):
+    question: str
+    profile_plan: Optional[str] = "free"
+    context: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+
+class ChatResponse(BaseModel):
+    answer: str
