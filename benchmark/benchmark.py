@@ -224,3 +224,49 @@ class AIAnalysisService:
     async def analyze_with_ai(prompt: str) -> Dict[str, Any]:
         provider = LLMFactory.get_provider()
         return await provider.analyze(prompt)
+
+    @staticmethod
+    def prepare_chat_prompt(
+        question: str,
+        profile_plan: str = "free",
+        context: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        safe_context = context or {}
+        portfolio_summary = safe_context.get("portfolioSummary", {})
+        assets = safe_context.get("assets", [])
+        return f"""
+Você é o Chat Inteligente da Trakker.
+Responda em português do Brasil, de forma clara, objetiva e baseada nos dados fornecidos.
+
+Plano do usuário: {profile_plan}
+Pergunta do usuário: {question}
+
+Contexto da carteira (resumo):
+{json.dumps(portfolio_summary, ensure_ascii=False)}
+
+Contexto da carteira (ativos):
+{json.dumps(assets, ensure_ascii=False)}
+
+IMPORTANTE:
+- Não invente dados fora do contexto.
+- Se faltar dado para precisão, diga isso explicitamente.
+- Quando envolver imposto/simulação, trate como estimativa.
+- Retorne APENAS JSON no formato:
+{{
+  "answer": "texto da resposta"
+}}
+"""
+
+    @staticmethod
+    async def chat_with_ai(
+        question: str,
+        profile_plan: str = "free",
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        prompt = AIAnalysisService.prepare_chat_prompt(
+            question=question,
+            profile_plan=profile_plan,
+            context=context,
+        )
+        provider = LLMFactory.get_provider()
+        return await provider.analyze(prompt)
