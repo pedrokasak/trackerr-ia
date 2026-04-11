@@ -247,6 +247,9 @@ Contexto da carteira (resumo):
 Contexto da carteira (ativos):
 {json.dumps(assets, ensure_ascii=False)}
 
+Contexto adicional completo (dinâmico):
+{json.dumps(safe_context, ensure_ascii=False)}
+
 IMPORTANTE:
 - Não invente dados fora do contexto.
 - Se faltar dado para precisão, diga isso explicitamente.
