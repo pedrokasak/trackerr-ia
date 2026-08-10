@@ -20,7 +20,6 @@ __pycache__
 
 # Ignore other files
 .env
-.env.example
 .env.test
 .env.local
 .env.development
