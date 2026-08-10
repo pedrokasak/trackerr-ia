@@ -14,12 +14,12 @@ import pytest
 # ---------------------------------------------------------------------------
 
 class TestLLMFactory:
-    def test_factory_returns_perplexity_by_default(self):
-        with patch.dict("os.environ", {"LLM_PROVIDER": "perplexity", "PERPLEXITY_API_KEY": "fake-key"}):
+    def test_factory_returns_gemini_by_default(self):
+        with patch.dict("os.environ", {"LLM_PROVIDER": "gemini", "GEMINI_API_KEY": "fake-key"}):
             from benchmark.providers.factory import LLMFactory
-            with patch("benchmark.providers.perplexity_provider.Perplexity"):
+            with patch("benchmark.providers.gemini_provider.genai.Client"):
                 provider = LLMFactory.get_provider()
-                assert provider.provider_name == "perplexity"
+                assert provider.provider_name == "gemini"
 
     def test_factory_returns_claude(self):
         with patch.dict("os.environ", {"LLM_PROVIDER": "claude", "ANTHROPIC_API_KEY": "fake-key"}):
@@ -44,25 +44,25 @@ class TestLLMFactory:
 
 
 # ---------------------------------------------------------------------------
-# PerplexityProvider
+# GeminiProvider
 # ---------------------------------------------------------------------------
 
-class TestPerplexityProvider:
+class TestGeminiProvider:
     @pytest.fixture
     def provider(self):
-        with patch.dict("os.environ", {"PERPLEXITY_API_KEY": "fake-key"}):
-            with patch("benchmark.providers.perplexity_provider.Perplexity"):
-                from benchmark.providers.perplexity_provider import PerplexityProvider
-                return PerplexityProvider()
+        with patch.dict("os.environ", {"GEMINI_API_KEY": "fake-key"}):
+            with patch("benchmark.providers.gemini_provider.genai.Client"):
+                from benchmark.providers.gemini_provider import GeminiProvider
+                return GeminiProvider()
 
     def test_provider_name(self, provider):
-        assert provider.provider_name == "perplexity"
+        assert provider.provider_name == "gemini"
 
     @pytest.mark.asyncio
     async def test_analyze_returns_parsed_json(self, provider):
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = '{"key": "value"}'
-        provider._client.chat.completions.create = MagicMock(return_value=mock_response)
+        mock_response.text = '{"key": "value"}'
+        provider._client.models.generate_content = MagicMock(return_value=mock_response)
 
         result = await provider.analyze("prompt de teste")
         assert result == {"key": "value"}
@@ -70,17 +70,17 @@ class TestPerplexityProvider:
     @pytest.mark.asyncio
     async def test_analyze_returns_raw_on_invalid_json(self, provider):
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = "resposta sem json"
-        provider._client.chat.completions.create = MagicMock(return_value=mock_response)
+        mock_response.text = "resposta sem json"
+        provider._client.models.generate_content = MagicMock(return_value=mock_response)
 
         result = await provider.analyze("prompt de teste")
         assert "raw_response" in result
 
     def test_raises_on_missing_api_key(self):
         with patch.dict("os.environ", {}, clear=True):
-            from benchmark.providers.perplexity_provider import PerplexityProvider
-            with pytest.raises(ValueError, match="PERPLEXITY_API_KEY"):
-                PerplexityProvider()
+            from benchmark.providers.gemini_provider import GeminiProvider
+            with pytest.raises(ValueError, match="GEMINI_API_KEY"):
+                GeminiProvider()
 
 
 # ---------------------------------------------------------------------------
