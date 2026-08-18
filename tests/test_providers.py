@@ -31,10 +31,9 @@ class TestLLMFactory:
     def test_factory_returns_groq(self):
         with patch.dict("os.environ", {"LLM_PROVIDER": "groq", "GROQ_API_KEY": "fake-key"}):
             from benchmark.providers.factory import LLMFactory
-            with patch("builtins.__import__", side_effect=lambda name, *args, **kwargs: MagicMock() if name == "groq" else __import__(name, *args, **kwargs)):
-                with patch("benchmark.providers.groq_provider.GroqProvider.__init__", return_value=None):
-                    provider = LLMFactory.get_provider()
-                    assert provider.provider_name == "groq"
+            with patch("benchmark.providers.groq_provider.GroqProvider.__init__", return_value=None):
+                provider = LLMFactory.get_provider()
+                assert provider.provider_name == "groq"
 
     def test_factory_raises_on_unknown_provider(self):
         with patch.dict("os.environ", {"LLM_PROVIDER": "openai"}):
