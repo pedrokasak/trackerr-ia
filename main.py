@@ -8,7 +8,6 @@ import uvicorn
 from benchmark.benchmark import (
     AIAnalysisService,
     FiiStrategy,
-    PredictiveService,
     StockStrategy,
     SimulationService,
 )
@@ -45,27 +44,22 @@ async def validation_exception_handler(request, exc):
 async def hybrid_analysis(user_profile: UserProfile):
     """
     Análise Hybrid completa:
-    - Free: Prophet só + Scores Básicos
-    - Premium/Pro: Prophet + AI (Groq/Llama) + Scores + Radar + Erros
+    - Free: Scores Básicos
+    - Premium/Pro: AI (Groq/Llama) + Scores + Radar + Erros
     """
     try:
         fastapi_logger.info(f"Analisando portfolio {user_profile.user_id}")
 
         stock_analyses = {}
         fii_analyses = {}
-        forecasts = {}
 
         for asset in user_profile.portfolio.assets:
             if asset.type == "stock" and asset.metrics:
                 # Usamos .evaluate() que é o novo nome no benchmark.py
                 stock_analyses[asset.symbol] = StockStrategy.evaluate(asset.metrics)
-                if user_profile.profile_plan != "free":
-                    forecasts[asset.symbol] = PredictiveService.forecast_price(asset.symbol)
 
             elif asset.type == "fii" and asset.metrics:
                 fii_analyses[asset.symbol] = FiiStrategy.evaluate(asset.metrics)
-                if user_profile.profile_plan != "free":
-                    forecasts[asset.symbol] = PredictiveService.forecast_price(asset.symbol)
 
         # 1. Se Free: retorna só análise estratégica
         if user_profile.profile_plan == "free":
@@ -79,7 +73,7 @@ async def hybrid_analysis(user_profile: UserProfile):
 
         # 2. Se Premium/Pro: IA faz análise completa (Score, Radar, Erros)
         prompt = AIAnalysisService.prepare_analysis_prompt(
-            user_profile, stock_analyses, fii_analyses, forecasts
+            user_profile, stock_analyses, fii_analyses
         )
 
         ai_response = await AIAnalysisService.analyze_with_ai(prompt)
@@ -89,7 +83,6 @@ async def hybrid_analysis(user_profile: UserProfile):
             "profile_plan": user_profile.profile_plan,
             "stock_scores": stock_analyses,
             "fii_scores": fii_analyses,
-            "forecasts": forecasts,
             "ai_analysis": ai_response, # Novo nome para o payload completo
             "timestamp": datetime.now().isoformat(),
         }
