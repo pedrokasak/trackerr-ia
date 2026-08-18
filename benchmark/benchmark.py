@@ -1,26 +1,7 @@
-import os
 import json
-import pandas as pd
-import numpy as np
-from datetime import datetime
-from typing import Dict, List, Any, Optional
-from fastapi.logger import logger
+from typing import Dict, Any, Optional
 
-# Mocking Prophet to avoid dependency issues if not installed
-try:
-    from prophet import Prophet as prophet
-except ImportError:
-    class prophet:
-        def __init__(self, **kwargs): pass
-        def fit(self, df): pass
-        def make_future_dataframe(self, periods): return pd.DataFrame({"ds": pd.date_range(start=datetime.now(), periods=periods)})
-        def predict(self, df): 
-            df["yhat"] = 100 + np.random.randn(len(df))
-            df["yhat_lower"] = df["yhat"] - 2
-            df["yhat_upper"] = df["yhat"] + 2
-            return df
-
-from models.models import UserProfile, Asset, StockMetrics, FiiMetrics, SimulationRequest
+from models.models import UserProfile, SimulationRequest
 from .providers.factory import LLMFactory
 
 class StockStrategy:
@@ -129,43 +110,12 @@ class SimulationService:
             "message": f"Em {req.years} anos, seu patrimônio pode chegar a R$ {neutral_fv:,.2f}."
         }
 
-class PredictiveService:
-    @staticmethod
-    def forecast_price(symbol: str) -> Dict[str, Any]:
-        """
-        Gera uma previsão simplificada usando Prophet (ou Mock)
-        """
-        try:
-            # Dados fake para o Prophet (ds, y)
-            df = pd.DataFrame({
-                "ds": pd.date_range(start="2024-01-01", periods=100),
-                "y": np.random.randint(10, 100, 100)
-            })
-            
-            m = prophet()
-            m.fit(df)
-            
-            future = m.make_future_dataframe(periods=30)
-            forecast = m.predict(future)
-            
-            return {
-                "symbol": symbol,
-                "ds": forecast["ds"].dt.strftime("%Y-%m-%d").tolist(),
-                "yhat": forecast["yhat"].tolist(),
-                "yhat_lower": forecast["yhat_lower"].tolist(),
-                "yhat_upper": forecast["yhat_upper"].tolist(),
-            }
-        except Exception as e:
-            logger.error(f"Erro no forecast via PredictiveService: {e}")
-            return {}
-
 class AIAnalysisService:
     @staticmethod
     def prepare_analysis_prompt(
         user_profile: UserProfile,
         stock_analyses: Dict[str, Dict] = None,
         fii_analyses: Dict[str, Dict] = None,
-        forecasts: Dict[str, Dict] = None,
     ) -> str:
         prompt = f"""
             # Análise Profissional de Portfolio Trakker (Nível Multi-Family Office)
