@@ -7,6 +7,7 @@ import uvicorn
 
 from benchmark.benchmark import (
     AIAnalysisService,
+    DigestNarrationService,
     FiiStrategy,
     StockStrategy,
     SimulationService,
@@ -18,6 +19,8 @@ from models.models import (
     SimulationRequest,
     ChatRequest,
     ChatResponse,
+    PortfolioDigestFactsInput,
+    DigestNarrateResponse,
 )
 
 load_dotenv()
@@ -122,6 +125,21 @@ async def chat_portfolio(request: ChatRequest):
     except Exception as e:
         fastapi_logger.error(f"Erro no chat: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/portfolio-digest-narrate", response_model=DigestNarrateResponse)
+async def portfolio_digest_narrate(facts: PortfolioDigestFactsInput):
+    """
+    Narra os fatos do digest semanal de carteira (TRA-17). O NestJS manda
+    fatos ja fechados e valida a resposta antes de usar — este endpoint so
+    escreve prosa em cima do que recebeu.
+    """
+    try:
+        text = await DigestNarrationService.narrate(facts)
+        return {"text": text}
+    except Exception as e:
+        fastapi_logger.error(f"Erro ao narrar digest de carteira: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/health")
 async def health():
