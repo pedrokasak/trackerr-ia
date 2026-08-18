@@ -132,3 +132,38 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
+
+
+# ============================================
+# Digest semanal da carteira (TRA-17)
+#
+# O server (NestJS) decide todo fato — quais ativos, quais numeros, quais
+# pontos de atencao. Este endpoint so recebe fatos ja fechados e devolve
+# prosa. Nunca busca dado, nunca calcula, nunca escolhe o que citar.
+# ============================================
+
+class DigestMoverInput(BaseModel):
+    symbol: str
+    change_percent: float
+
+
+class DigestWatchItemInput(BaseModel):
+    symbol: str
+    reason: str
+    detail: str
+
+
+class PortfolioDigestFactsInput(BaseModel):
+    period_start: str
+    period_end: str
+    portfolio_value: Optional[float] = None
+    period_change_pct: Optional[float] = None
+    period_change_abs: Optional[float] = None
+    top_gainers: List[DigestMoverInput] = Field(default_factory=list)
+    top_losers: List[DigestMoverInput] = Field(default_factory=list)
+    watch_items: List[DigestWatchItemInput] = Field(default_factory=list)
+    dividends_received: Optional[float] = None
+
+
+class DigestNarrateResponse(BaseModel):
+    text: str

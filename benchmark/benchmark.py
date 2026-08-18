@@ -1,7 +1,7 @@
 import json
 from typing import Dict, Any, Optional
 
-from models.models import UserProfile, SimulationRequest
+from models.models import UserProfile, SimulationRequest, PortfolioDigestFactsInput
 from .providers.factory import LLMFactory
 
 class StockStrategy:
@@ -220,3 +220,55 @@ IMPORTANTE:
         )
         provider = LLMFactory.get_provider()
         return await provider.analyze(prompt)
+
+
+class DigestNarrationService:
+    """
+    Narra os fatos do digest semanal de carteira (TRA-17) em prosa curta.
+    Recebe fatos ja fechados pelo NestJS — nunca busca dado, nunca calcula,
+    nunca decide o que citar. O NestJS valida a resposta contra os mesmos
+    fatos antes de usar (digest-narrative-validator.ts): todo ticker citado
+    precisa existir na entrada, nenhum verbo de recomendacao.
+    """
+
+    @staticmethod
+    def prepare_prompt(facts: PortfolioDigestFactsInput) -> str:
+        gainers = ", ".join(
+            f"{m.symbol} ({m.change_percent:+.1f}%)" for m in facts.top_gainers
+        ) or "nenhum"
+        losers = ", ".join(
+            f"{m.symbol} ({m.change_percent:+.1f}%)" for m in facts.top_losers
+        ) or "nenhum"
+        watch = "; ".join(
+            f"{w.symbol}: {w.detail}" for w in facts.watch_items
+        ) or "nenhum"
+
+        return f"""
+Você escreve o resumo semanal da carteira de um usuário do Trakker, em português do Brasil.
+
+REGRAS OBRIGATÓRIAS:
+- Use APENAS os fatos abaixo. Não invente número, ativo ou dado que não esteja aqui.
+- Nunca recomende compra, venda ou qualquer ação sobre um ativo. Descreva o que aconteceu, nunca o que fazer.
+- 2 a 4 frases, tom direto e informativo.
+- Cite ativos pelo ticker exatamente como aparecem abaixo — nunca cite um ticker que não esteja listado.
+
+FATOS:
+Período: {facts.period_start} a {facts.period_end}
+Valor da carteira: {facts.portfolio_value}
+Variação no período: {facts.period_change_pct}% ({facts.period_change_abs})
+Maiores altas do dia: {gainers}
+Maiores baixas do dia: {losers}
+Pontos de atenção: {watch}
+Dividendos recebidos no período: {facts.dividends_received}
+
+Retorne APENAS JSON no formato:
+{{"text": "..."}}
+"""
+
+    @staticmethod
+    async def narrate(facts: PortfolioDigestFactsInput) -> str:
+        prompt = DigestNarrationService.prepare_prompt(facts)
+        provider = LLMFactory.get_provider()
+        result = await provider.analyze(prompt)
+        text = result.get("text") or result.get("answer") or result.get("raw_response") or ""
+        return str(text)
