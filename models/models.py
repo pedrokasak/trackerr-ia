@@ -167,3 +167,22 @@ class PortfolioDigestFactsInput(BaseModel):
 
 class DigestNarrateResponse(BaseModel):
     text: str
+
+
+# ============================================
+# Query RAG (TRA-37)
+#
+# user_id chega no corpo porque quem chama e o server (NestJS), ja
+# autenticado — mesmo padrao do digest de e-mail. trackerr-ia nao faz
+# auth propria, confia no chamador interno.
+# ============================================
+
+class RagQueryRequest(BaseModel):
+    user_id: str
+    question: str
+
+
+class RagQueryResponse(BaseModel):
+    answer: str
+    source: str  # 'ai' | 'no_context' | 'guard_rejected'
+    chunk_count: int
