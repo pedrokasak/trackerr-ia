@@ -15,7 +15,7 @@ fixa no Postgres) — documentado aqui de proposito pra nao ser surpresa.
 from datetime import datetime, timezone
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, Index, Integer, String, Text
+from sqlalchemy import ARRAY, DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 EMBEDDING_DIM = 768
@@ -48,4 +48,32 @@ class DocumentChunk(Base):
         # Toda query real filtra por user_id primeiro — indice cobre o caso
         # comum (usuario + tipo de fonte) sem exigir segundo index scan.
         Index("ix_document_chunks_user_id_source_type", "user_id", "source_type"),
+    )
+
+
+class RagQueryAuditLog(Base):
+    """
+    Toda interacao do RAG — pergunta, chunks recuperados, resposta final —
+    fica registrada aqui. Principio 4.3 do CLAUDE.md (acoes criticas devem
+    ser auditavel). `guard_result` diferente de 'ok' significa que a
+    resposta persistida e o fallback determinístico, nao o texto do
+    modelo — a auditoria mostra que o guardrail disparou, nao esconde.
+    """
+
+    __tablename__ = "rag_query_audit_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    retrieved_chunk_ids: Mapped[list[int]] = mapped_column(
+        ARRAY(Integer), nullable=False, default=list
+    )
+    response_text: Mapped[str] = mapped_column(Text, nullable=False)
+    guard_result: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+
+    __table_args__ = (
+        Index("ix_rag_query_audit_log_user_id", "user_id"),
     )

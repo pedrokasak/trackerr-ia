@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.logger import logger as fastapi_logger
 from datetime import datetime
 import logging
@@ -21,7 +22,13 @@ from models.models import (
     ChatResponse,
     PortfolioDigestFactsInput,
     DigestNarrateResponse,
+    RagQueryRequest,
+    RagQueryResponse,
 )
+from benchmark.providers.factory import LLMFactory
+from rag.database import get_rag_session
+from rag.embeddings import GeminiEmbeddingProvider
+from rag.query_service import RagQueryService
 
 load_dotenv()
 
@@ -138,6 +145,36 @@ async def portfolio_digest_narrate(facts: PortfolioDigestFactsInput):
         return {"text": text}
     except Exception as e:
         fastapi_logger.error(f"Erro ao narrar digest de carteira: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/rag/query", response_model=RagQueryResponse)
+async def rag_query(
+    request: RagQueryRequest, session: AsyncSession = Depends(get_rag_session)
+):
+    """
+    Pergunta em linguagem natural sobre a carteira/documentos do usuário
+    (TRA-37). Retrieval sempre filtrado por user_id (rag/repository.py);
+    resposta validada antes de sair (rag/response_guard.py); toda
+    interação é auditada (rag/models.py:RagQueryAuditLog).
+    """
+    try:
+        embedding_provider = GeminiEmbeddingProvider()
+        service = RagQueryService(
+            session=session,
+            embedding_provider=embedding_provider,
+            llm_provider=LLMFactory.get_provider(),
+        )
+        result = await service.query(request.user_id, request.question)
+        return {
+            "answer": result.answer,
+            "source": result.source,
+            "chunk_count": result.chunk_count,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        fastapi_logger.error(f"Erro na query RAG: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
