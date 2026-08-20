@@ -6,10 +6,11 @@ embedding. `user_id` e NOT NULL e obrigatorio em toda query de retrieval —
 ver repository.py, onde o filtro nunca e opcional (risco P0 do doc: vazamento
 de dado entre usuarios).
 
-Dimensao do embedding fixa em 768 (Gemini text-embedding-004, o provider
-default do LLM_PROVIDER — ver benchmark/providers/factory.py). Trocar de
-modelo de embedding no futuro exige migracao (coluna vector tem dimensao
-fixa no Postgres) — documentado aqui de proposito pra nao ser surpresa.
+Dimensao do embedding fixa em 768. Modelo real: gemini-embedding-001, com
+output_dimensionality forcado pra 768 (default do modelo e 3072) — ver
+rag/embeddings.py. Trocar de modelo ou de dimensao no futuro exige migracao
+(coluna vector tem dimensao fixa no Postgres) — documentado aqui de
+proposito pra nao ser surpresa.
 """
 
 from datetime import datetime, timezone

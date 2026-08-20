@@ -18,7 +18,12 @@ from google import genai
 
 from rag.models import EMBEDDING_DIM
 
-EMBEDDING_MODEL = "text-embedding-004"
+# "text-embedding-004" (o nome assumido ao escrever TRA-37) nao existe mais
+# nesta API — 404 NOT_FOUND, confirmado contra a API real. O modelo atual e
+# gemini-embedding-001, com dimensao default de 3072; output_dimensionality
+# forca 768 pra bater com o schema existente (vector(768)) sem precisar de
+# nova migracao.
+EMBEDDING_MODEL = "gemini-embedding-001"
 
 
 class EmbeddingProvider(ABC):
@@ -41,6 +46,7 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
         response = await self._client.aio.models.embed_content(
             model=EMBEDDING_MODEL,
             contents=[text],
+            config={"output_dimensionality": EMBEDDING_DIM},
         )
         if not response.embeddings or not response.embeddings[0].values:
             raise RuntimeError("Gemini não retornou embedding para o texto enviado.")
