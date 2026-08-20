@@ -186,3 +186,22 @@ class RagQueryResponse(BaseModel):
     answer: str
     source: str  # 'ai' | 'no_context' | 'guard_rejected'
     chunk_count: int
+
+
+# TRA-72: ingestao de fatos de carteira. NestJS decide o QUE virar chunk
+# (posicao, radar de erro, etc.) e manda texto pronto — trackerr-ia so
+# chunka, embeda e grava. Ver rag/ingestion_service.py.
+class RagIngestItem(BaseModel):
+    source_type: str
+    source_id: str
+    content: str
+
+
+class RagIngestRequest(BaseModel):
+    user_id: str
+    items: list[RagIngestItem]
+
+
+class RagIngestResponse(BaseModel):
+    chunks_deleted: int
+    chunks_created: int

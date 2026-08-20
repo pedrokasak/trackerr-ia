@@ -24,10 +24,13 @@ from models.models import (
     DigestNarrateResponse,
     RagQueryRequest,
     RagQueryResponse,
+    RagIngestRequest,
+    RagIngestResponse,
 )
 from benchmark.providers.factory import LLMFactory
 from rag.database import get_rag_session
 from rag.embeddings import GeminiEmbeddingProvider
+from rag.ingestion_service import RagIngestionService, RagIngestItem
 from rag.query_service import RagQueryService
 
 load_dotenv()
@@ -175,6 +178,40 @@ async def rag_query(
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         fastapi_logger.error(f"Erro na query RAG: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/rag/ingest", response_model=RagIngestResponse)
+async def rag_ingest(
+    request: RagIngestRequest, session: AsyncSession = Depends(get_rag_session)
+):
+    """
+    Recebe fatos ja prontos como texto (posicao, radar de erro, etc. —
+    decisao de QUE virar chunk e do server, TRA-72) e substitui os chunks
+    do usuario: apaga tudo que existia e grava a versao nova, ja com
+    embedding. Sem merge incremental de proposito — mais simples, e o
+    dado de carteira muda todo dia mesmo.
+    """
+    try:
+        embedding_provider = GeminiEmbeddingProvider()
+        service = RagIngestionService(session=session, embedding_provider=embedding_provider)
+        items = [
+            RagIngestItem(
+                source_type=item.source_type,
+                source_id=item.source_id,
+                content=item.content,
+            )
+            for item in request.items
+        ]
+        result = await service.ingest(request.user_id, items)
+        return {
+            "chunks_deleted": result.chunks_deleted,
+            "chunks_created": result.chunks_created,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        fastapi_logger.error(f"Erro na ingestão RAG: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
