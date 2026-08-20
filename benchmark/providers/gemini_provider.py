@@ -17,7 +17,11 @@ from .base import LLMProvider
 class GeminiProvider(LLMProvider):
     """Provider usando Google Gemini."""
 
-    DEFAULT_MODEL = "gemini-2.5-flash"
+    # "gemini-2.5-flash" descontinuado pro Google — 404 NOT_FOUND
+    # confirmado contra a API real, com a propria resposta de erro
+    # apontando o substituto: "models/gemini-3.6-flash". Verificado
+    # funcionando com chamada real antes de trocar aqui.
+    DEFAULT_MODEL = "gemini-3.6-flash"
 
     def __init__(self, model: str = DEFAULT_MODEL) -> None:
         api_key = os.getenv("GEMINI_API_KEY")

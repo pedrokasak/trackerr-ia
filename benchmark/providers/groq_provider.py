@@ -16,7 +16,15 @@ from .base import LLMProvider
 class GroqProvider(LLMProvider):
     """Provider usando Groq (modelos rápidos e de baixo custo)."""
 
-    DEFAULT_MODEL = "llama-3.3-70b-versatile"
+    # "llama-3.3-70b-versatile" foi descontinuado pela Groq e nem aparece
+    # mais em client.models.list() — 404 model_not_found confirmado contra
+    # a API real. Groq descontinuou a linha Llama; openai/gpt-oss-120b é o
+    # modelo de maior capacidade atualmente listado, mais próximo do 70B
+    # antigo em porte. Precisa estar habilitado no console da Groq
+    # (Settings > Project > Limits) — contas novas vêm com a maioria dos
+    # modelos bloqueados a nível de projeto por padrão, confirmado com 403
+    # model_permission_blocked_project ao testar.
+    DEFAULT_MODEL = "openai/gpt-oss-120b"
 
     def __init__(self, model: str = DEFAULT_MODEL) -> None:
         api_key = os.getenv("GROQ_API_KEY")

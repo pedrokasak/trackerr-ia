@@ -29,7 +29,9 @@ async def test_embed_devolve_os_768_valores(monkeypatch):
 
         assert len(result) == 768
         mock_client.aio.models.embed_content.assert_awaited_once_with(
-            model=EMBEDDING_MODEL, contents=["Quanto tenho em PETR4?"]
+            model=EMBEDDING_MODEL,
+            contents=["Quanto tenho em PETR4?"],
+            config={"output_dimensionality": 768},
         )
 
 
