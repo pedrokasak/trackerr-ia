@@ -35,6 +35,13 @@ class TestLLMFactory:
                 provider = LLMFactory.get_provider()
                 assert provider.provider_name == "groq"
 
+    def test_factory_returns_nvidia(self):
+        with patch.dict("os.environ", {"LLM_PROVIDER": "nvidia", "NVIDIA_API_KEY": "fake-key"}):
+            from benchmark.providers.factory import LLMFactory
+            with patch("benchmark.providers.nvidia_provider.OpenAI"):
+                provider = LLMFactory.get_provider()
+                assert provider.provider_name == "nvidia"
+
     def test_factory_raises_on_unknown_provider(self):
         with patch.dict("os.environ", {"LLM_PROVIDER": "openai"}):
             from benchmark.providers.factory import LLMFactory
