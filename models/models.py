@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
@@ -195,6 +196,11 @@ class RagIngestItem(BaseModel):
     source_type: str
     source_id: str
     content: str
+    # Metadata estruturada do fato (symbol, sector, portfolio_weight...) e
+    # data de referencia. Opcionais pra nao quebrar quem ja chama o endpoint
+    # com o payload de TRA-72.
+    metadata: Optional[Dict[str, Any]] = None
+    as_of: Optional[date] = None
 
 
 class RagIngestRequest(BaseModel):
@@ -205,3 +211,5 @@ class RagIngestRequest(BaseModel):
 class RagIngestResponse(BaseModel):
     chunks_deleted: int
     chunks_created: int
+    chunks_unchanged: int = 0
+    warnings: list[str] = Field(default_factory=list)

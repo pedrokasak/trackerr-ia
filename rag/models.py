@@ -13,13 +13,29 @@ rag/embeddings.py. Trocar de modelo ou de dimensao no futuro exige migracao
 proposito pra nao ser surpresa.
 """
 
-from datetime import datetime, timezone
+import hashlib
+from datetime import date, datetime, timezone
+from typing import Any
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ARRAY, DateTime, Index, Integer, String, Text
+from sqlalchemy import ARRAY, Date, DateTime, Index, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 EMBEDDING_DIM = 768
+
+
+def compute_content_hash(content: str) -> str:
+    """
+    Hash do texto do chunk, usado pra decidir se precisa re-embedar (TRA-74).
+
+    Embedding e o custo dominante da ingestao em escala, e a maioria dos
+    fatos de carteira nao muda de um dia pro outro. Quem monta o `content`
+    deve arredondar os numeros (`15%`, nao `15,03%`) — senao oscilacao de
+    centavo muda o texto, muda o hash, e dispara re-embed diario de tudo,
+    anulando a otimizacao inteira.
+    """
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
 class Base(DeclarativeBase):
@@ -41,6 +57,18 @@ class DocumentChunk(Base):
     source_id: Mapped[str] = mapped_column(String(128), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
+    # Metadata estruturada do fato (symbol, sector, portfolio_weight, ...).
+    # So vale a pena manter enquanto o retrieval de fato filtrar por ela —
+    # metadata que ninguem consulta e peso morto. Nullable porque chunks
+    # gravados antes de TRA-74 nao tem.
+    chunk_metadata: Mapped[dict[str, Any] | None] = mapped_column(
+        "metadata", JSONB, nullable=True
+    )
+    # Data de referencia do FATO, nao da gravacao — coluna de primeira classe
+    # (nao chave dentro do JSON) porque o caminho de resposta filtra e checa
+    # frescor por ela (TRA-77).
+    as_of: Mapped[date | None] = mapped_column(Date, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )
@@ -49,6 +77,9 @@ class DocumentChunk(Base):
         # Toda query real filtra por user_id primeiro — indice cobre o caso
         # comum (usuario + tipo de fonte) sem exigir segundo index scan.
         Index("ix_document_chunks_user_id_source_type", "user_id", "source_type"),
+        # Ingestao incremental busca os chunks existentes do usuario por
+        # source_id pra comparar hash — sem isso, cada ciclo faz seq scan.
+        Index("ix_document_chunks_user_id_source_id", "user_id", "source_id"),
     )
 
 

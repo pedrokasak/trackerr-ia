@@ -187,10 +187,10 @@ async def rag_ingest(
 ):
     """
     Recebe fatos ja prontos como texto (posicao, radar de erro, etc. —
-    decisao de QUE virar chunk e do server, TRA-72) e substitui os chunks
-    do usuario: apaga tudo que existia e grava a versao nova, ja com
-    embedding. Sem merge incremental de proposito — mais simples, e o
-    dado de carteira muda todo dia mesmo.
+    decisao de QUE virar chunk e do server, TRA-72) e sincroniza os chunks
+    do usuario por diff de content_hash (TRA-74): so o que mudou paga
+    embedding, o que sumiu da carteira e removido, o resto e pulado.
+    `chunks_unchanged` na resposta mostra quanto a otimizacao economizou.
     """
     try:
         embedding_provider = GeminiEmbeddingProvider()
@@ -200,6 +200,8 @@ async def rag_ingest(
                 source_type=item.source_type,
                 source_id=item.source_id,
                 content=item.content,
+                metadata=item.metadata,
+                as_of=item.as_of,
             )
             for item in request.items
         ]
@@ -207,6 +209,8 @@ async def rag_ingest(
         return {
             "chunks_deleted": result.chunks_deleted,
             "chunks_created": result.chunks_created,
+            "chunks_unchanged": result.chunks_unchanged,
+            "warnings": result.warnings,
         }
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))

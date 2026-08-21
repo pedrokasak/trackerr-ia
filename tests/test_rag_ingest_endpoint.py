@@ -20,7 +20,12 @@ def test_rag_ingest_endpoint_returns_counts():
         "main.RagIngestionService"
     ) as mock_service_cls:
         mock_service_cls.return_value.ingest = AsyncMock(
-            return_value=RagIngestResult(chunks_deleted=2, chunks_created=3)
+            return_value=RagIngestResult(
+                chunks_deleted=2,
+                chunks_created=3,
+                chunks_unchanged=27,
+                warnings=[],
+            )
         )
 
         response = client.post(
@@ -37,6 +42,66 @@ def test_rag_ingest_endpoint_returns_counts():
     body = response.json()
     assert body["chunks_deleted"] == 2
     assert body["chunks_created"] == 3
+    assert body["chunks_unchanged"] == 27
+
+
+def test_rag_ingest_endpoint_accepts_metadata_and_as_of():
+    with patch("main.GeminiEmbeddingProvider"), patch(
+        "main.RagIngestionService"
+    ) as mock_service_cls:
+        mock_service_cls.return_value.ingest = AsyncMock(
+            return_value=RagIngestResult(chunks_deleted=0, chunks_created=1)
+        )
+
+        response = client.post(
+            "/api/rag/ingest",
+            json={
+                "user_id": "user-1",
+                "items": [
+                    {
+                        "source_type": "portfolio_position",
+                        "source_id": "PETR4",
+                        "content": "PETR4 representa 15% da carteira.",
+                        "metadata": {"symbol": "PETR4", "sector": "Energia"},
+                        "as_of": "2026-08-20",
+                    }
+                ],
+            },
+        )
+
+    assert response.status_code == 200
+    forwarded = mock_service_cls.return_value.ingest.call_args.args[1][0]
+    assert forwarded.metadata == {"symbol": "PETR4", "sector": "Energia"}
+    assert forwarded.as_of.isoformat() == "2026-08-20"
+
+
+def test_rag_ingest_endpoint_still_accepts_payload_without_metadata():
+    """Compatibilidade com o payload de TRA-72, que nao tem metadata/as_of."""
+    with patch("main.GeminiEmbeddingProvider"), patch(
+        "main.RagIngestionService"
+    ) as mock_service_cls:
+        mock_service_cls.return_value.ingest = AsyncMock(
+            return_value=RagIngestResult(chunks_deleted=0, chunks_created=1)
+        )
+
+        response = client.post(
+            "/api/rag/ingest",
+            json={
+                "user_id": "user-1",
+                "items": [
+                    {
+                        "source_type": "portfolio_position",
+                        "source_id": "PETR4",
+                        "content": "PETR4 representa 15% da carteira.",
+                    }
+                ],
+            },
+        )
+
+    assert response.status_code == 200
+    forwarded = mock_service_cls.return_value.ingest.call_args.args[1][0]
+    assert forwarded.metadata is None
+    assert forwarded.as_of is None
 
 
 def test_rag_ingest_endpoint_returns_422_on_missing_user_id():
