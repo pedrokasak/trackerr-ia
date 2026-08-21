@@ -1,0 +1,69 @@
+# Infra local/deploy do trackerr-ia: Postgres com pgvector + a API.
+#
+# O Postgres aqui e o banco DEDICADO do RAG (TRA-35). Nao e o banco
+# transacional da aplicacao — esse e o MongoDB do `server`, que tem o
+# proprio compose. Os dois sao independentes de proposito: o trackerr-ia
+# nunca acessa o banco transacional direto (principio 2 de
+# docs/rag-trackerr-ia.md).
+#
+# Subir tudo:      docker compose up -d
+# So o banco:      docker compose up -d postgres
+# Rodar migracao:  docker compose run --rm api alembic upgrade head
+
+services:
+  postgres:
+    # pgvector/pgvector ja traz a extensao `vector` compilada; a migracao
+    # 0001 faz o CREATE EXTENSION. Postgres 16 e a versao contra a qual as
+    # tres migracoes foram verificadas (upgrade, downgrade e upgrade).
+    image: pgvector/pgvector:pg16
+    container_name: trackerr-rag-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${RAG_POSTGRES_USER:-trackerr}
+      POSTGRES_PASSWORD: ${RAG_POSTGRES_PASSWORD:?defina RAG_POSTGRES_PASSWORD no .env}
+      POSTGRES_DB: ${RAG_POSTGRES_DB:-trackerr_rag}
+    volumes:
+      - rag_pgdata:/var/lib/postgresql/data
+    ports:
+      # 5433 no host de proposito: evita colidir com um Postgres local ja
+      # rodando na 5432. Dentro da rede do compose a porta continua 5432.
+      - "${RAG_POSTGRES_HOST_PORT:-5433}:5432"
+    healthcheck:
+      # Sem isto a API sobe antes do banco aceitar conexao e a migracao
+      # falha no primeiro start com "connection refused".
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${RAG_POSTGRES_USER:-trackerr} -d ${RAG_POSTGRES_DB:-trackerr_rag}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build: .
+    container_name: trackerr-ia
+    restart: always
+    ports:
+      - "${TRACKERR_IA_PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      # Sobrescreve o RAG_DATABASE_URL do .env de proposito: o valor de la
+      # aponta pro host (localhost:5433), que dentro do container nao e o
+      # banco. `environment` vence `env_file` no compose.
+      RAG_DATABASE_URL: postgresql+asyncpg://${RAG_POSTGRES_USER:-trackerr}:${RAG_POSTGRES_PASSWORD}@postgres:5432/${RAG_POSTGRES_DB:-trackerr_rag}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Migracao antes do servidor: garante que o schema existe no primeiro
+    # start. Serializa por lock do proprio Alembic, entao e seguro aqui —
+    # mas se um dia isto rodar com varias replicas, tirar a migracao daqui
+    # e roda-la como passo separado do deploy.
+    command: >
+      bash -lc "alembic upgrade head &&
+                uvicorn main:app --host 0.0.0.0 --port 8000"
+
+volumes:
+  rag_pgdata:
