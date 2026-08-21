@@ -3,6 +3,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.logger import logger as fastapi_logger
 from datetime import datetime
+import os
 import logging
 import uvicorn
 
@@ -26,10 +27,13 @@ from models.models import (
     RagQueryResponse,
     RagIngestRequest,
     RagIngestResponse,
+    RagEraseRequest,
+    RagEraseResponse,
 )
 from benchmark.providers.factory import LLMFactory
 from rag.database import get_rag_session
 from rag.embeddings import GeminiEmbeddingProvider
+from rag.erasure_service import RagErasureService
 from rag.ingestion_service import RagIngestionService, RagIngestItem
 from rag.query_service import RagQueryService
 
@@ -219,9 +223,49 @@ async def rag_ingest(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/rag/erase", response_model=RagEraseResponse)
+async def rag_erase(
+    request: RagEraseRequest, session: AsyncSession = Depends(get_rag_session)
+):
+    """
+    Apaga os dados de RAG de um usuario (TRA-78, LGPD).
+
+    Endpoint explicito em vez de reaproveitar `/api/rag/ingest` com lista
+    vazia: exclusao por direito do titular precisa aparecer como exclusao no
+    log de acesso, nao disfarcada de sincronizacao de rotina.
+
+    Idempotente — usuario sem dado nenhum devolve 200 com zeros. Isso
+    importa pro chamador poder repetir com seguranca depois de um timeout.
+    """
+    try:
+        service = RagErasureService(session=session)
+        result = await service.erase(request.user_id)
+        fastapi_logger.info(
+            f"[LGPD] Dados de RAG apagados: chunks={result.chunks_deleted} "
+            f"audit_anonimizados={result.audit_rows_anonymized}"
+        )
+        return {
+            "chunks_deleted": result.chunks_deleted,
+            "audit_rows_anonymized": result.audit_rows_anonymized,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        fastapi_logger.error(f"Erro na exclusao de dados RAG: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "version": "2.5.0", "engine": "Groq/Llama-3.3"}
+    # O provider vem da config, nao hardcoded: a versao anterior reportava
+    # "Groq/Llama-3.3" fixo, que virou mentira quando o provider mudou (o
+    # modelo nem existe mais). Endpoint de monitoramento que mente e pior
+    # que endpoint que nao existe.
+    return {
+        "status": "ok",
+        "version": "2.5.0",
+        "llm_provider": os.getenv("LLM_PROVIDER", "gemini"),
+    }
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

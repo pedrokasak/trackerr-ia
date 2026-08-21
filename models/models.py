@@ -213,3 +213,14 @@ class RagIngestResponse(BaseModel):
     chunks_created: int
     chunks_unchanged: int = 0
     warnings: list[str] = Field(default_factory=list)
+
+
+class RagEraseRequest(BaseModel):
+    user_id: str
+
+
+class RagEraseResponse(BaseModel):
+    chunks_deleted: int
+    # Linhas de auditoria preservadas com user_id anonimizado e texto
+    # redigido, nao apagadas — ver rag/erasure_service.py pro porque.
+    audit_rows_anonymized: int
