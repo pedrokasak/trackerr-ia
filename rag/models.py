@@ -102,6 +102,10 @@ class RagQueryAuditLog(Base):
     )
     response_text: Mapped[str] = mapped_column(Text, nullable=False)
     guard_result: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Frescor do pior chunk usado na resposta, em dias (TRA-77). Nullable:
+    # None quando nenhum chunk tinha as_of conhecido. Guardado pra permitir
+    # investigar depois "por que a resposta daquele dia estava errada".
+    data_max_age_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )

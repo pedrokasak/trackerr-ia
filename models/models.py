@@ -187,6 +187,9 @@ class RagQueryResponse(BaseModel):
     answer: str
     source: str  # 'ai' | 'no_context' | 'guard_rejected'
     chunk_count: int
+    # Frescor do pior chunk usado, em dias (TRA-77). None quando nenhum chunk
+    # tinha data conhecida. Opcional: nao quebra quem ja consome a resposta.
+    data_max_age_days: Optional[int] = None
 
 
 # TRA-72: ingestao de fatos de carteira. NestJS decide o QUE virar chunk

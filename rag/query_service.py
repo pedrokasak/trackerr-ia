@@ -12,11 +12,13 @@ sentido desenhar quando houver conteudo real pra guardar.
 """
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rag.audit import AuditLogRepository
 from rag.embeddings import EmbeddingProvider
+from rag.freshness import assess_freshness
 from rag.repository import DocumentChunkRepository
 from rag.response_guard import validate_rag_response
 from benchmark.providers.base import LLMProvider
@@ -46,6 +48,7 @@ class RagQueryResult:
     answer: str
     source: str  # 'ai' | 'no_context' | 'guard_rejected'
     chunk_count: int
+    data_max_age_days: int | None = None
 
 
 class RagQueryService:
@@ -96,9 +99,28 @@ class RagQueryService:
                 chunk_count=len(chunks),
             )
 
-        final_answer = f"{raw_text.strip()}\n\n{DISCLAIMER}"
-        await self._audit_repo.record(user_id, question, chunk_ids, final_answer, "ok")
-        return RagQueryResult(answer=final_answer, source="ai", chunk_count=len(chunks))
+        # Frescor em CODIGO, nao no prompt (TRA-77): dado velho apresentado
+        # como atual e pior que ausencia de resposta. A nota, quando existe,
+        # vai no TOPO — o usuario ve o aviso antes do conteudo.
+        freshness = assess_freshness(chunks, datetime.now(timezone.utc).date())
+        body = raw_text.strip()
+        if freshness.note:
+            body = f"{freshness.note}\n\n{body}"
+        final_answer = f"{body}\n\n{DISCLAIMER}"
+        await self._audit_repo.record(
+            user_id,
+            question,
+            chunk_ids,
+            final_answer,
+            "ok",
+            data_max_age_days=freshness.max_age_days,
+        )
+        return RagQueryResult(
+            answer=final_answer,
+            source="ai",
+            chunk_count=len(chunks),
+            data_max_age_days=freshness.max_age_days,
+        )
 
     def _build_prompt(self, question: str, chunks: list) -> str:
         context_lines = "\n".join(f"- {chunk.content}" for chunk in chunks)
