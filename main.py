@@ -29,11 +29,17 @@ from models.models import (
     RagIngestResponse,
     RagEraseRequest,
     RagEraseResponse,
+    SharedKnowledgeIngestRequest,
+    SharedKnowledgeIngestResponse,
 )
 from benchmark.providers.factory import LLMFactory
 from rag.database import get_rag_session
 from rag.embeddings import GeminiEmbeddingProvider
 from rag.erasure_service import RagErasureService
+from rag.shared_knowledge_service import (
+    SharedKnowledgeService,
+    SharedKnowledgeItem,
+)
 from rag.ingestion_service import RagIngestionService, RagIngestItem
 from rag.query_service import RagQueryService
 
@@ -221,6 +227,53 @@ async def rag_ingest(
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         fastapi_logger.error(f"Erro na ingestão RAG: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/api/rag/knowledge/ingest", response_model=SharedKnowledgeIngestResponse
+)
+async def rag_knowledge_ingest(
+    request: SharedKnowledgeIngestRequest,
+    session: AsyncSession = Depends(get_rag_session),
+):
+    """
+    Ingestao de conhecimento CURADO e COMPARTILHADO (TRA-87), ex.: base fiscal
+    revisada (TRA-36). Endpoint administrativo, rodado sob demanda quando uma
+    nova revisao do conteudo e aprovada — NAO o cron diario por usuario.
+
+    Conteudo compartilhado entre todos os usuarios, sem user_id: vive em
+    tabela separada de document_chunks, sem tocar no isolamento por usuario.
+    Diff incremental por content_hash: so re-embeda o que mudou.
+
+    IMPORTANTE: so ingerir conteudo aprovado por profissional habilitado. O
+    guardrail de resposta continua valendo, mas conteudo fiscal errado na
+    base e responsabilidade de quem ingeriu.
+    """
+    try:
+        embedding_provider = GeminiEmbeddingProvider()
+        service = SharedKnowledgeService(
+            session=session, embedding_provider=embedding_provider
+        )
+        items = [
+            SharedKnowledgeItem(
+                source_id=item.source_id,
+                content=item.content,
+                version=item.version,
+            )
+            for item in request.items
+        ]
+        result = await service.ingest(request.knowledge_base, items)
+        return {
+            "chunks_deleted": result.chunks_deleted,
+            "chunks_created": result.chunks_created,
+            "chunks_unchanged": result.chunks_unchanged,
+            "warnings": result.warnings,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        fastapi_logger.error(f"Erro na ingestao de conhecimento compartilhado: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

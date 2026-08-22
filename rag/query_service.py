@@ -19,7 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from rag.audit import AuditLogRepository
 from rag.embeddings import EmbeddingProvider
 from rag.freshness import assess_freshness
-from rag.repository import DocumentChunkRepository
+from rag.models import DocumentChunk
+from rag.repository import DocumentChunkRepository, SharedKnowledgeRepository
 from rag.response_guard import validate_rag_response
 from benchmark.providers.base import LLMProvider
 
@@ -62,6 +63,7 @@ class RagQueryService:
         self._embedding_provider = embedding_provider
         self._llm_provider = llm_provider
         self._chunks_repo = DocumentChunkRepository(session)
+        self._shared_repo = SharedKnowledgeRepository(session)
         self._audit_repo = AuditLogRepository(session)
 
     async def query(self, user_id: str, question: str) -> RagQueryResult:
@@ -70,9 +72,7 @@ class RagQueryService:
             raise ValueError("question obrigatória.")
 
         query_embedding = await self._embedding_provider.embed(question)
-        chunks = await self._chunks_repo.search(
-            user_id=user_id, query_embedding=query_embedding, top_k=TOP_K
-        )
+        chunks = await self._retrieve(user_id, query_embedding)
 
         if not chunks:
             await self._audit_repo.record(
@@ -87,7 +87,10 @@ class RagQueryService:
         raw_text = str(raw.get("answer") or raw.get("raw_response") or "")
 
         guard = validate_rag_response(raw_text)
-        chunk_ids = [chunk.id for chunk in chunks]
+        # So chunks pessoais entram no audit de ids: os compartilhados vem de
+        # outra tabela e o mesmo int significaria linhas diferentes. O
+        # conteudo compartilhado e versionado e rastreavel pelo source_id.
+        chunk_ids = [c.id for c in chunks if isinstance(c, DocumentChunk)]
 
         if not guard.valid:
             await self._audit_repo.record(
@@ -121,6 +124,26 @@ class RagQueryService:
             chunk_count=len(chunks),
             data_max_age_days=freshness.max_age_days,
         )
+
+    async def _retrieve(self, user_id: str, query_embedding: list[float]) -> list:
+        """
+        Recupera contexto pessoal (isolado por usuario) + conhecimento curado
+        compartilhado (TRA-87), mesclados numa unica ordem de relevancia.
+
+        A busca pessoal continua `WHERE user_id = X`, intocada — o
+        compartilhado vem de outra tabela, sem dado de usuario. Mescla por
+        distancia de cosseno e corta em TOP_K: uma pergunta geral sobre regra
+        fiscal traz chunks compartilhados; uma sobre a carteira traz os
+        pessoais; e o LLM recebe os mais relevantes dos dois mundos.
+        """
+        personal = await self._chunks_repo.search_with_distance(
+            user_id=user_id, query_embedding=query_embedding, top_k=TOP_K
+        )
+        shared = await self._shared_repo.search_with_distance(
+            query_embedding=query_embedding, top_k=TOP_K
+        )
+        merged = sorted(personal + shared, key=lambda pair: pair[1])
+        return [chunk for chunk, _distance in merged[:TOP_K]]
 
     def _build_prompt(self, question: str, chunks: list) -> str:
         context_lines = "\n".join(f"- {chunk.content}" for chunk in chunks)

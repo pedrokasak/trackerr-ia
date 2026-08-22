@@ -227,3 +227,23 @@ class RagEraseResponse(BaseModel):
     # Linhas de auditoria preservadas com user_id anonimizado e texto
     # redigido, nao apagadas — ver rag/erasure_service.py pro porque.
     audit_rows_anonymized: int
+
+
+# TRA-87: ingestao de conhecimento curado e compartilhado (base fiscal).
+# Conteudo nao-pessoal, embedado uma vez, versionado. Endpoint administrativo.
+class SharedKnowledgeItemModel(BaseModel):
+    source_id: str
+    content: str
+    version: Optional[str] = None
+
+
+class SharedKnowledgeIngestRequest(BaseModel):
+    knowledge_base: str
+    items: List[SharedKnowledgeItemModel]
+
+
+class SharedKnowledgeIngestResponse(BaseModel):
+    chunks_deleted: int
+    chunks_created: int
+    chunks_unchanged: int = 0
+    warnings: List[str] = Field(default_factory=list)
