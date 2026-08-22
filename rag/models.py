@@ -83,6 +83,50 @@ class DocumentChunk(Base):
     )
 
 
+class SharedKnowledgeChunk(Base):
+    """
+    Conhecimento CURADO e COMPARTILHADO entre todos os usuarios (TRA-87).
+
+    Tabela separada de `document_chunks` de proposito. `document_chunks` tem
+    a propriedade de seguranca mais critica do sistema — isolamento por
+    usuario (TRA-35), `WHERE user_id = X` que nunca pode errar. Conteudo
+    compartilhado (base fiscal curada, TRA-36) e o oposto: nao tem dono, e
+    pra todo mundo. Misturar os dois numa tabela so, com um sentinel de
+    user_id, acoplaria dois ciclos de vida diferentes na tabela cujo filtro
+    nao pode falhar. Manter separado deixa a query de isolamento intocada.
+
+    Sem `user_id`: e compartilhado por definicao. `knowledge_base` agrupa por
+    dominio (ex.: 'fiscal'); `source_id` e o chunk_id estavel do documento
+    curado (ex.: 'fiscal:acoes:isencao-20k'), usado pra upsert incremental
+    por hash (mesmo padrao de TRA-74).
+    """
+
+    __tablename__ = "shared_knowledge_chunks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    knowledge_base: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Versao do conteudo curado — permite auditar qual revisao respondeu.
+    version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+
+    __table_args__ = (
+        # Identidade do chunk curado: um source_id por base de conhecimento.
+        # Upsert incremental depende disso pra casar o que ja existe.
+        Index(
+            "ix_shared_knowledge_chunks_kb_source_id",
+            "knowledge_base",
+            "source_id",
+            unique=True,
+        ),
+    )
+
+
 class RagQueryAuditLog(Base):
     """
     Toda interacao do RAG — pergunta, chunks recuperados, resposta final —
