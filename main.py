@@ -177,6 +177,7 @@ async def rag_query(
             "answer": result.answer,
             "source": result.source,
             "chunk_count": result.chunk_count,
+            "data_max_age_days": result.data_max_age_days,
         }
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
