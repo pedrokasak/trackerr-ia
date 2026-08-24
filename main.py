@@ -34,6 +34,7 @@ from models.models import (
 )
 from benchmark.providers.factory import LLMFactory
 from rag.database import get_rag_session
+from rag.service_auth import require_service_token
 from rag.embeddings import GeminiEmbeddingProvider
 from rag.erasure_service import RagErasureService
 from rag.shared_knowledge_service import (
@@ -63,7 +64,7 @@ async def validation_exception_handler(request, exc):
 # ENDPOINTS
 # ============================================
 
-@app.post("/api/hybrid-analysis")
+@app.post("/api/hybrid-analysis", dependencies=[Depends(require_service_token)])
 async def hybrid_analysis(user_profile: UserProfile):
     """
     Análise Hybrid completa:
@@ -114,7 +115,7 @@ async def hybrid_analysis(user_profile: UserProfile):
         fastapi_logger.error(f"Erro na análise: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/simulate")
+@app.post("/api/simulate", dependencies=[Depends(require_service_token)])
 async def simulate_portfolio(request: SimulationRequest):
     """
     Simulação de futuro baseada em aportes mensais
@@ -126,7 +127,7 @@ async def simulate_portfolio(request: SimulationRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/chat")
+@app.post("/api/chat", dependencies=[Depends(require_service_token)])
 async def chat_portfolio(request: ChatRequest):
     """
     Chat inteligente baseado no contexto real da carteira.
@@ -146,7 +147,11 @@ async def chat_portfolio(request: ChatRequest):
         fastapi_logger.error(f"Erro no chat: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/portfolio-digest-narrate", response_model=DigestNarrateResponse)
+@app.post(
+    "/api/portfolio-digest-narrate",
+    response_model=DigestNarrateResponse,
+    dependencies=[Depends(require_service_token)],
+)
 async def portfolio_digest_narrate(facts: PortfolioDigestFactsInput):
     """
     Narra os fatos do digest semanal de carteira (TRA-17). O NestJS manda
@@ -161,7 +166,11 @@ async def portfolio_digest_narrate(facts: PortfolioDigestFactsInput):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/rag/query", response_model=RagQueryResponse)
+@app.post(
+    "/api/rag/query",
+    response_model=RagQueryResponse,
+    dependencies=[Depends(require_service_token)],
+)
 async def rag_query(
     request: RagQueryRequest, session: AsyncSession = Depends(get_rag_session)
 ):
@@ -192,7 +201,11 @@ async def rag_query(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/rag/ingest", response_model=RagIngestResponse)
+@app.post(
+    "/api/rag/ingest",
+    response_model=RagIngestResponse,
+    dependencies=[Depends(require_service_token)],
+)
 async def rag_ingest(
     request: RagIngestRequest, session: AsyncSession = Depends(get_rag_session)
 ):
@@ -231,7 +244,9 @@ async def rag_ingest(
 
 
 @app.post(
-    "/api/rag/knowledge/ingest", response_model=SharedKnowledgeIngestResponse
+    "/api/rag/knowledge/ingest",
+    response_model=SharedKnowledgeIngestResponse,
+    dependencies=[Depends(require_service_token)],
 )
 async def rag_knowledge_ingest(
     request: SharedKnowledgeIngestRequest,
@@ -277,7 +292,11 @@ async def rag_knowledge_ingest(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/rag/erase", response_model=RagEraseResponse)
+@app.post(
+    "/api/rag/erase",
+    response_model=RagEraseResponse,
+    dependencies=[Depends(require_service_token)],
+)
 async def rag_erase(
     request: RagEraseRequest, session: AsyncSession = Depends(get_rag_session)
 ):
