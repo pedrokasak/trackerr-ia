@@ -25,9 +25,16 @@ services:
     volumes:
       - rag_pgdata:/var/lib/postgresql/data
     ports:
-      # 5433 no host de proposito: evita colidir com um Postgres local ja
-      # rodando na 5432. Dentro da rede do compose a porta continua 5432.
-      - "${RAG_POSTGRES_HOST_PORT:-5433}:5432"
+      # Publicado SO no loopback (TRA-89): a API fala com o banco pela rede
+      # interna do compose, entao a porta no host existe apenas pra
+      # ferramenta local (psql, cliente grafico, rodar migracao na mao).
+      # Sem o `127.0.0.1` o Docker abre a porta em 0.0.0.0 e — em VPS sem
+      # firewall, como um deploy tipico de Coolify — deixa o banco vetorial
+      # acessivel pela internet.
+      #
+      # 5433 evita colidir com um Postgres local ja rodando na 5432. Dentro
+      # da rede do compose a porta continua 5432.
+      - "127.0.0.1:${RAG_POSTGRES_HOST_PORT:-5433}:5432"
     healthcheck:
       # Sem isto a API sobe antes do banco aceitar conexao e a migracao
       # falha no primeiro start com "connection refused".
