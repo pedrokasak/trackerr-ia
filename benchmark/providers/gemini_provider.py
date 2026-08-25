@@ -23,12 +23,15 @@ class GeminiProvider(LLMProvider):
     # funcionando com chamada real antes de trocar aqui.
     DEFAULT_MODEL = "gemini-3.6-flash"
 
-    def __init__(self, model: str = DEFAULT_MODEL) -> None:
+    def __init__(self, model: str | None = None) -> None:
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY não configurada no .env")
         self._client = genai.Client(api_key=api_key)
-        self._model = model
+        # Argumento explicito vence; depois GEMINI_MODEL; por ultimo o
+        # padrao da classe. Trocar de modelo passa a ser variavel de
+        # ambiente, sem alterar codigo.
+        self._model = model or os.getenv("GEMINI_MODEL") or self.DEFAULT_MODEL
 
     @property
     def provider_name(self) -> str:
