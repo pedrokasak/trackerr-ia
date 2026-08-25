@@ -43,6 +43,12 @@ class NvidiaProvider(LLMProvider):
             raise ValueError("NVIDIA_API_KEY não configurada no .env")
         self._client = OpenAI(base_url=NVIDIA_BASE_URL, api_key=api_key)
         self._model = model or os.getenv("NVIDIA_MODEL") or self.DEFAULT_MODEL
+        logger.info(
+        	"[%s] Modelo resolvido: %s (origem: %s)",
+        	self.provider_name,
+        	self._model,
+        	"argumento" if model else ("NVIDIA_MODEL" if os.getenv("NVIDIA_MODEL") else "padrao da classe"),
+        )
 
     @property
     def provider_name(self) -> str:

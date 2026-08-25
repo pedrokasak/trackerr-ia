@@ -32,6 +32,12 @@ class GeminiProvider(LLMProvider):
         # padrao da classe. Trocar de modelo passa a ser variavel de
         # ambiente, sem alterar codigo.
         self._model = model or os.getenv("GEMINI_MODEL") or self.DEFAULT_MODEL
+        logger.info(
+        	"[%s] Modelo resolvido: %s (origem: %s)",
+        	self.provider_name,
+        	self._model,
+        	"argumento" if model else ("GEMINI_MODEL" if os.getenv("GEMINI_MODEL") else "padrao da classe"),
+        )
 
     @property
     def provider_name(self) -> str:

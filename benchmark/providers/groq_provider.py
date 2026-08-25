@@ -42,6 +42,12 @@ class GroqProvider(LLMProvider):
         # padrao da classe. Trocar de modelo passa a ser variavel de
         # ambiente, sem alterar codigo.
         self._model = model or os.getenv("GROQ_MODEL") or self.DEFAULT_MODEL
+        logger.info(
+        	"[%s] Modelo resolvido: %s (origem: %s)",
+        	self.provider_name,
+        	self._model,
+        	"argumento" if model else ("GROQ_MODEL" if os.getenv("GROQ_MODEL") else "padrao da classe"),
+        )
 
     @property
     def provider_name(self) -> str:
