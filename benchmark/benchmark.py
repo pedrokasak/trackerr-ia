@@ -29,12 +29,20 @@ class StockStrategy:
             details.append("Alta governança")
 
         rating = "TOP" if score >= 80 else "BOM" if score >= 50 else "EVITAR"
-        recommendation = "COMPRA" if score >= 70 else "HOLD" if score >= 40 else "VENDA"
-        
+
+        # TRA-53: `recommendation` (COMPRA/HOLD/VENDA) saiu daqui.
+        # Emitir ordem de compra ou venda por ativo e indicacao de
+        # investimento, e o produto declara publicamente que nao faz isso
+        # ("O Trackerr nao e consultoria de investimento e nao indica
+        # ativos", FAQ da landing). Nao ha registro de consultoria.
+        #
+        # O score continua: ele descreve qualidade observada a partir de
+        # regras explicitas. O que saiu foi o salto de "score 68" para
+        # "VENDA" — um veredito de acao apoiado em cinco limiares fixos.
+
         return {
             "score": score,
             "rating": rating,
-            "recommendation": recommendation,
             "details": details
         }
 
@@ -68,12 +76,20 @@ class FiiStrategy:
             details.append("Histórico sólido de dividendos")
 
         rating = "TOP" if score >= 75 else "BOM" if score >= 50 else "ALERTA"
-        recommendation = "COMPRA" if score >= 70 else "HOLD" if score >= 40 else "VENDA"
-        
+
+        # TRA-53: `recommendation` (COMPRA/HOLD/VENDA) saiu daqui.
+        # Emitir ordem de compra ou venda por ativo e indicacao de
+        # investimento, e o produto declara publicamente que nao faz isso
+        # ("O Trackerr nao e consultoria de investimento e nao indica
+        # ativos", FAQ da landing). Nao ha registro de consultoria.
+        #
+        # O score continua: ele descreve qualidade observada a partir de
+        # regras explicitas. O que saiu foi o salto de "score 68" para
+        # "VENDA" — um veredito de acao apoiado em cinco limiares fixos.
+
         return {
             "score": score,
             "rating": rating,
-            "recommendation": recommendation,
             "details": details,
             "critical_rejection": pvp > 1.5
         }
@@ -142,7 +158,7 @@ class AIAnalysisService:
 1. **Investment Score (0-100)**: Avalie diversificação, risco, consistência, volatilidade.
 2. **Auto Rebalanceamento**: Sugira uma "Carteira Ideal" baseada no perfil {user_profile.risk_profile}.
 3. **Smart Feed (Spotify Style)**: Gere 3-5 eventos recentes impactantes (ex: 'Petrobras caiu 2%', 'Cripto subiu 5%') e o impacto total na carteira.
-4. **Radar de Oportunidades**: 3 recomendações claras.
+4. **Radar de Oportunidades**: 3 observacoes sobre o que mudou na carteira e merece atencao. Descreva o fato, nunca uma ordem de compra ou venda.
 5. **Radar Anti-Erro**: Alertas críticos.
 
 ## JSON SCHEMA:
