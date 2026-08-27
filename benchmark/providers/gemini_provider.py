@@ -3,6 +3,7 @@ Provider Gemini (Google).
 Requer GEMINI_API_KEY no .env e dependência `google-genai` instalada.
 """
 
+import asyncio
 import json
 import os
 from typing import Any, Dict
@@ -12,6 +13,9 @@ from fastapi.logger import logger
 from google import genai
 
 from .base import LLMProvider
+
+_RETRYABLE_CODES = (503, 429, 500)
+_MAX_RETRIES = 3
 
 
 class GeminiProvider(LLMProvider):
@@ -44,20 +48,34 @@ class GeminiProvider(LLMProvider):
         return "gemini"
 
     async def analyze(self, prompt: str) -> Dict[str, Any]:
-        """Chama Gemini e retorna JSON parseado."""
-        try:
-            response = self._client.models.generate_content(
-                model=self._model,
-                contents=prompt,
-            )
-            response_text = response.text
-            logger.info(f"[{self.provider_name}] Resposta recebida. Modelo: {self._model}")
+        """Chama Gemini e retorna JSON parseado. Retry com backoff em 503/429."""
+        last_exc: Exception | None = None
+        for attempt in range(1, _MAX_RETRIES + 1):
+            try:
+                response = self._client.models.generate_content(
+                    model=self._model,
+                    contents=prompt,
+                )
+                response_text = response.text
+                logger.info(f"[{self.provider_name}] Resposta recebida. Modelo: {self._model}")
+                return self._parse_json(response_text)
 
-            return self._parse_json(response_text)
+            except Exception as e:
+                err_str = str(e)
+                is_retryable = any(str(code) in err_str for code in _RETRYABLE_CODES)
+                if is_retryable and attempt < _MAX_RETRIES:
+                    wait = 2 ** (attempt - 1)  # 1s, 2s
+                    logger.warning(
+                        f"[{self.provider_name}] Erro transitório (tentativa {attempt}/{_MAX_RETRIES}), "
+                        f"retry em {wait}s: {e}"
+                    )
+                    await asyncio.sleep(wait)
+                    last_exc = e
+                else:
+                    logger.error(f"[{self.provider_name}] Erro: {e}")
+                    raise HTTPException(status_code=500, detail=err_str)
 
-        except Exception as e:
-            logger.error(f"[{self.provider_name}] Erro: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=503, detail=str(last_exc))
 
     def _parse_json(self, response_text: str) -> Dict[str, Any]:
         try:
