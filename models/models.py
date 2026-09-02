@@ -95,8 +95,6 @@ class OpportunityRadarItem(BaseModel):
     symbol: str
     type: str
     price: float
-    target_price: float
-    upside: float
     rationale: str
 
 class AllocationItem(BaseModel):

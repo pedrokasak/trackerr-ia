@@ -180,7 +180,7 @@ class AIAnalysisService:
         {{ "title": "Petrobras (PETR4)", "content": "Caiu 2.1% devido a rumores de dividendos.", "impact": "negative", "symbol": "PETR4" }}
     ],
     "error_detection": [ {{ "type": "correlation|concentration", "severity": "high|medium|low", "message": "...", "symbol": "..." }} ],
-    "opportunity_radar": [ {{ "symbol": "...", "type": "...", "price": 0, "target_price": 0, "upside": 0.0, "rationale": "..." }} ],
+    "opportunity_radar": [ {{ "symbol": "...", "type": "...", "price": 0, "rationale": "..." }} ],
     "risk_assessment": "..."
 }}
 """
