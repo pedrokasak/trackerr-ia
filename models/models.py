@@ -245,3 +245,68 @@ class SharedKnowledgeIngestResponse(BaseModel):
     chunks_created: int
     chunks_unchanged: int = 0
     warnings: List[str] = Field(default_factory=list)
+
+
+# ============================================
+# Insights com profundidade (TRA-56)
+#
+# Insight bruto ("Reduza exposicao a cripto") nao diz de onde veio nem o
+# que fazer. As estruturas abaixo carregam a evidencia numerica que
+# disparou o insight, uma confianca calculada a partir de metricas de
+# entrada (nao pedida ao LLM), uma acao concreta com rota, e as fontes
+# RAG consultadas. `title`/`body` permanecem para BC.
+# ============================================
+
+
+class InsightEvidence(BaseModel):
+    """Ponto de dado deterministico que disparou o insight."""
+
+    label: str
+    value: Any
+    source: Optional[str] = None  # id do fato de entrada, ex.: 'exposure.cripto'
+
+
+class InsightConfidence(BaseModel):
+    value: float = Field(ge=0.0, le=1.0)
+    bucket: Literal["baixa", "media", "alta"]
+    reason: str
+
+
+class InsightAction(BaseModel):
+    label: str
+    route: str
+    payload: Optional[Dict[str, Any]] = None
+    why: Optional[str] = None
+
+
+class InsightSource(BaseModel):
+    """
+    Reflexo do que TRA-76 ja emite quando um chunk RAG e usado. Campos sao
+    opcionais pra acomodar tanto fatos pessoais (source_type/source_id) quanto
+    conhecimento compartilhado (knowledge_base/source_id).
+    """
+
+    source_type: Optional[str] = None
+    source_id: Optional[str] = None
+    knowledge_base: Optional[str] = None
+    as_of: Optional[date] = None
+
+
+class Insight(BaseModel):
+    id: str
+    title: str
+    body: str  # BC: campo curto ja consumido pelo frontend
+    rationale: str
+    evidence: List[InsightEvidence] = Field(default_factory=list)
+    confidence: InsightConfidence
+    action: Optional[InsightAction] = None
+    sources: List[InsightSource] = Field(default_factory=list)
+
+
+class InsightsRequest(BaseModel):
+    user_profile: UserProfile
+    data_freshness_days: Optional[int] = None
+
+
+class InsightsResponse(BaseModel):
+    insights: List[Insight]

@@ -31,7 +31,10 @@ from models.models import (
     RagEraseResponse,
     SharedKnowledgeIngestRequest,
     SharedKnowledgeIngestResponse,
+    InsightsRequest,
+    InsightsResponse,
 )
+from insights.service import InsightsService
 from benchmark.providers.factory import LLMFactory
 from rag.database import get_rag_session
 from rag.service_auth import require_service_token
@@ -325,6 +328,33 @@ async def rag_erase(
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         fastapi_logger.error(f"Erro na exclusao de dados RAG: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/api/insights",
+    response_model=InsightsResponse,
+    dependencies=[Depends(require_service_token)],
+)
+async def generate_insights(request: InsightsRequest):
+    """
+    Gera insights com profundidade (TRA-56): evidencia deterministica,
+    confianca calculada, acao com rota, rationale narrado com guardrail
+    anti-alucinacao numerica. Ver `insights/service.py` para a divisao de
+    trabalho entre codigo e LLM.
+    """
+    try:
+        service = InsightsService(
+            llm_provider=LLMFactory.get_provider(),
+            logger=fastapi_logger,
+        )
+        insights = await service.generate(
+            request.user_profile,
+            data_freshness_days=request.data_freshness_days,
+        )
+        return {"insights": insights}
+    except Exception as e:
+        fastapi_logger.error(f"Erro ao gerar insights: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
