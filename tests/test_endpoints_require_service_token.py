@@ -24,6 +24,10 @@ PROTECTED_ENDPOINTS = [
     ("/api/rag/erase", {"user_id": "u1"}),
     ("/api/rag/knowledge/ingest", {"knowledge_base": "fiscal", "items": []}),
     ("/api/chat", {"question": "oi"}),
+    (
+        "/api/insights",
+        {"user_profile": {"user_id": "u1", "portfolio": {"assets": []}}},
+    ),
 ]
 
 
