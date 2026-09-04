@@ -3,6 +3,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.logger import logger as fastapi_logger
 from datetime import datetime
+from typing import Dict
 import os
 import logging
 import uvicorn
@@ -35,6 +36,7 @@ from models.models import (
     InsightsResponse,
 )
 from insights.service import InsightsService
+from insights.producers import PRODUCERS as LEGACY_INSIGHT_PRODUCERS
 from benchmark.providers.factory import LLMFactory
 from rag.database import get_rag_session
 from rag.service_auth import require_service_token
@@ -91,6 +93,7 @@ async def hybrid_analysis(user_profile: UserProfile):
         # 1. Se Free: retorna só análise estratégica
         if user_profile.profile_plan == "free":
             return {
+                "schema_version": "v2",
                 "plan": "free",
                 "stock_scores": stock_analyses,
                 "fii_scores": fii_analyses,
@@ -105,12 +108,38 @@ async def hybrid_analysis(user_profile: UserProfile):
 
         ai_response = await AIAnalysisService.analyze_with_ai(prompt)
 
+        # TRA-135: producers migrados para o shape estendido de Insight
+        # (evidencia deterministica, confianca calculada, acao com rota,
+        # rationale com guardrail anti-alucinacao). Rodam em paralelo ao
+        # payload legado do LLM — consumidores antigos continuam lendo
+        # `ai_analysis`, novos consumidores leem `insights_v2` chaveado por
+        # `schema_version`.
+        insights_service = InsightsService(
+            llm_provider=LLMFactory.get_provider(),
+            logger=fastapi_logger,
+        )
+        insights_v2: Dict[str, list] = {}
+        for name, producer in LEGACY_INSIGHT_PRODUCERS.items():
+            try:
+                produced = await insights_service.generate(
+                    user_profile, producer=producer
+                )
+                insights_v2[name] = [i.model_dump() for i in produced]
+            except Exception as producer_error:  # pragma: no cover
+                fastapi_logger.error(
+                    f"Producer {name} falhou; seguindo com lista vazia: "
+                    f"{producer_error}"
+                )
+                insights_v2[name] = []
+
         return {
+            "schema_version": "v2",
             "plan": user_profile.user_id, # Usando ID para contexto
             "profile_plan": user_profile.profile_plan,
             "stock_scores": stock_analyses,
             "fii_scores": fii_analyses,
             "ai_analysis": ai_response, # Novo nome para o payload completo
+            "insights_v2": insights_v2,
             "timestamp": datetime.now().isoformat(),
         }
 
