@@ -22,7 +22,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from benchmark.providers.base import LLMProvider
 from models.models import (
@@ -437,8 +437,15 @@ class InsightsService:
         *,
         data_freshness_days: Optional[int] = None,
         sources: Optional[List[InsightSource]] = None,
+        producer: Optional[Callable[[UserProfile], List[InsightCandidate]]] = None,
     ) -> List[Insight]:
-        candidates = build_deterministic_evidence(profile)
+        # TRA-135: `producer` permite migrar producers legados de
+        # /api/hybrid-analysis (opportunity_radar, error_detection,
+        # smart_feed, recommendations) reaproveitando o mesmo pipeline
+        # — evidencia deterministica, narracao com guardrail anti-alucinacao,
+        # confianca calculada, acao com rota. Default mantem BC do TRA-56.
+        candidate_builder = producer or build_deterministic_evidence
+        candidates = candidate_builder(profile)
         if not candidates:
             return []
 
