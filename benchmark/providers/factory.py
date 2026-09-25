@@ -7,6 +7,7 @@ Valores aceitos para LLM_PROVIDER:
   - claude
   - groq
   - nvidia
+  - openrouter
 """
 
 import os
@@ -18,7 +19,7 @@ from .base import LLMProvider
 class LLMFactory:
     """Factory que resolve qual provider de LLM usar com base no .env."""
 
-    _SUPPORTED = ("gemini", "claude", "groq", "nvidia")
+    _SUPPORTED = ("gemini", "claude", "groq", "nvidia", "openrouter")
 
     @staticmethod
     def get_provider() -> LLMProvider:
@@ -49,6 +50,10 @@ class LLMFactory:
         if provider_name == "nvidia":
             from .nvidia_provider import NvidiaProvider
             return NvidiaProvider()
+
+        if provider_name == "openrouter":
+            from .openrouter_provider import OpenRouterProvider
+            return OpenRouterProvider()
 
         raise ValueError(
             f"LLM_PROVIDER='{provider_name}' não suportado. "

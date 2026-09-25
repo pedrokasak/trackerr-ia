@@ -42,6 +42,13 @@ class TestLLMFactory:
                 provider = LLMFactory.get_provider()
                 assert provider.provider_name == "nvidia"
 
+    def test_factory_returns_openrouter(self):
+        with patch.dict("os.environ", {"LLM_PROVIDER": "openrouter", "OPENROUTER_API_KEY": "fake-key"}):
+            from benchmark.providers.factory import LLMFactory
+            with patch("benchmark.providers.openrouter_provider.OpenAI"):
+                provider = LLMFactory.get_provider()
+                assert provider.provider_name == "openrouter"
+
     def test_factory_raises_on_unknown_provider(self):
         with patch.dict("os.environ", {"LLM_PROVIDER": "openai"}):
             from benchmark.providers.factory import LLMFactory
