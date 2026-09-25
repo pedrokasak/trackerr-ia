@@ -25,10 +25,12 @@ FastAPI service used by Trackerr for AI analysis and simulations.
 
    | Variável             | Descrição                                              |
    | -------------------- | -------------------------------------------------------- |
-   | `LLM_PROVIDER`        | Provider de LLM ativo: `gemini` (padrão), `claude` ou `groq` |
+   | `LLM_PROVIDER`        | Provider de LLM ativo: `gemini` (padrão), `claude`, `groq`, `nvidia` ou `openrouter` |
    | `GEMINI_API_KEY`      | Necessária quando `LLM_PROVIDER=gemini`                    |
    | `ANTHROPIC_API_KEY`   | Necessária quando `LLM_PROVIDER=claude`                    |
    | `GROQ_API_KEY`        | Necessária quando `LLM_PROVIDER=groq`                       |
+   | `NVIDIA_API_KEY`      | Necessária quando `LLM_PROVIDER=nvidia`                     |
+   | `OPENROUTER_API_KEY`  | Necessária quando `LLM_PROVIDER=openrouter`                 |
    | `RAG_DATABASE_URL`    | Postgres do vector store (TRA-35) — ver seção RAG abaixo    |
 
    Preencha apenas a chave do provider selecionado.
