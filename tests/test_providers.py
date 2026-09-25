@@ -49,6 +49,78 @@ class TestLLMFactory:
                 provider = LLMFactory.get_provider()
                 assert provider.provider_name == "openrouter"
 
+    # ------------------------------------------------------------------
+    # LLM_PROVIDER_FALLBACK (TRA-203)
+    # ------------------------------------------------------------------
+
+    def test_factory_sem_fallback_devolve_provider_puro(self):
+        with patch.dict(
+            "os.environ",
+            {"LLM_PROVIDER": "nvidia", "NVIDIA_API_KEY": "fake-key"},
+            clear=True,
+        ):
+            from benchmark.providers.factory import LLMFactory
+            from benchmark.providers.nvidia_provider import NvidiaProvider
+
+            with patch("benchmark.providers.nvidia_provider.OpenAI"):
+                provider = LLMFactory.get_provider()
+                assert isinstance(provider, NvidiaProvider)
+
+    def test_factory_com_fallback_devolve_wrapper(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "LLM_PROVIDER": "nvidia",
+                "NVIDIA_API_KEY": "fake-key",
+                "LLM_PROVIDER_FALLBACK": "openrouter",
+                "OPENROUTER_API_KEY": "fake-key",
+            },
+            clear=True,
+        ):
+            from benchmark.providers.factory import LLMFactory
+            from benchmark.providers.fallback_provider import FallbackLLMProvider
+
+            with patch("benchmark.providers.nvidia_provider.OpenAI"), patch(
+                "benchmark.providers.openrouter_provider.OpenAI"
+            ):
+                provider = LLMFactory.get_provider()
+                assert isinstance(provider, FallbackLLMProvider)
+                assert provider.provider_name == "nvidia"
+
+    def test_factory_fallback_igual_ao_primario_e_ignorado(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "LLM_PROVIDER": "nvidia",
+                "NVIDIA_API_KEY": "fake-key",
+                "LLM_PROVIDER_FALLBACK": "nvidia",
+            },
+            clear=True,
+        ):
+            from benchmark.providers.factory import LLMFactory
+            from benchmark.providers.nvidia_provider import NvidiaProvider
+
+            with patch("benchmark.providers.nvidia_provider.OpenAI"):
+                provider = LLMFactory.get_provider()
+                # Sem wrapper: fallback igual ao primario nao protege nada.
+                assert isinstance(provider, NvidiaProvider)
+
+    def test_factory_fallback_invalido_levanta_erro_no_boot(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "LLM_PROVIDER": "nvidia",
+                "NVIDIA_API_KEY": "fake-key",
+                "LLM_PROVIDER_FALLBACK": "bing",
+            },
+            clear=True,
+        ):
+            from benchmark.providers.factory import LLMFactory
+
+            with patch("benchmark.providers.nvidia_provider.OpenAI"):
+                with pytest.raises(ValueError, match="não suportado"):
+                    LLMFactory.get_provider()
+
     def test_factory_raises_on_unknown_provider(self):
         with patch.dict("os.environ", {"LLM_PROVIDER": "openai"}):
             from benchmark.providers.factory import LLMFactory
