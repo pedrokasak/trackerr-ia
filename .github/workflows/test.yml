@@ -1,0 +1,29 @@
+name: Test
+
+on:
+  pull_request:
+    branches: [develop, main, 'release/**']
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: pipx install poetry==1.8.3
+
+      - name: Install dependencies
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-root --no-interaction
+
+      - name: Run tests
+        run: poetry run pytest -q
