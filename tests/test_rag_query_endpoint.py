@@ -16,7 +16,8 @@ client = TestClient(app)
 
 
 def test_rag_query_endpoint_returns_answer():
-    with patch("main.GeminiEmbeddingProvider"), patch(
+    # O teste não depende de chave de LLM no .env da máquina.
+    with patch("main.GeminiEmbeddingProvider"), patch("main.LLMFactory"), patch(
         "main.RagQueryService"
     ) as mock_service_cls:
         mock_service_cls.return_value.query = AsyncMock(
@@ -40,7 +41,8 @@ def test_rag_query_endpoint_returns_answer():
 
 
 def test_rag_query_endpoint_returns_422_on_empty_question():
-    with patch("main.GeminiEmbeddingProvider"), patch(
+    # O teste não depende de chave de LLM no .env da máquina.
+    with patch("main.GeminiEmbeddingProvider"), patch("main.LLMFactory"), patch(
         "main.RagQueryService"
     ) as mock_service_cls:
         mock_service_cls.return_value.query = AsyncMock(
@@ -55,7 +57,8 @@ def test_rag_query_endpoint_returns_422_on_empty_question():
 
 
 def test_rag_query_endpoint_returns_500_on_provider_error():
-    with patch("main.GeminiEmbeddingProvider"), patch(
+    # O teste não depende de chave de LLM no .env da máquina.
+    with patch("main.GeminiEmbeddingProvider"), patch("main.LLMFactory"), patch(
         "main.RagQueryService"
     ) as mock_service_cls:
         mock_service_cls.return_value.query = AsyncMock(

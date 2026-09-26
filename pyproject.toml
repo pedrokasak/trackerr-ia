@@ -9,14 +9,14 @@ package-mode = false
 
 [tool.poetry.dependencies]
 python = ">=3.11"
-fastapi = {extras = ["standard"], version = ">=0.119.0,<0.120.0"}
+fastapi = {extras = ["standard"], version = ">=0.141.1,<0.142.0"}
 pydantic = ">=2.12.3,<3.0.0"
 uvicorn = ">=0.37.0,<0.38.0"
 pandas = ">=2.3.3,<3.0.0"
 prophet = ">=1.1.7,<2.0.0"
 ruff = ">=0.14.1,<0.15.0"
 anthropic = ">=0.71.0,<0.72.0"
-python-dotenv = ">=1.1.1,<2.0.0"
+python-dotenv = ">=1.2.2,<2.0.0"
 google-genai = ">=1.0.0,<2.0.0"
 groq = ">=0.28.0,<0.29.0"
 pytest = ">=8.0.0,<9.0.0"
@@ -27,7 +27,17 @@ asyncpg = ">=0.29.0,<0.31.0"
 pgvector = ">=0.3.0,<0.5.0"
 alembic = ">=1.13.0,<2.0.0"
 openai = "^3.3.1"
+# Pisos de segurança para dependências transitivas (TRA-210, avisos do OSV).
+starlette = ">=1.3.1"
+python-multipart = ">=0.0.31"
+urllib3 = ">=2.7.0"
+pillow = ">=12.3.0"
+anyio = ">=4.14.2"
 
 [build-system]
 requires = ["poetry-core>=1.9.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+# conftest.py importa `main`; sem isto só `python -m pytest` funcionava (TRA-219).
+pythonpath = ["."]
