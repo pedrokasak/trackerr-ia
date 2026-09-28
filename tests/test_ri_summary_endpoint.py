@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, patch
 
 from main import app
+from ri.summary_guard import CitedHighlight
 from ri.summary_service import RiSummaryRejectedError, RiSummaryResult
 
 
@@ -22,7 +23,7 @@ VALID_PAYLOAD = {
 }
 
 
-def test_ri_summarize_returns_highlights_and_narrative():
+def test_ri_summarize_returns_highlights_narrative_and_citations():
     with patch(
         "ri.summary_service.RiSummaryService.summarize",
         new=AsyncMock(
@@ -30,6 +31,14 @@ def test_ri_summarize_returns_highlights_and_narrative():
                 highlights=["Receita cresceu 12%."],
                 narrative="Trimestre de crescimento de receita.",
                 provider="gemini",
+                citations=[
+                    CitedHighlight(
+                        text="Receita cresceu 12%.",
+                        excerpt="Receita líquida cresceu 12% no trimestre.",
+                        page=3,
+                    )
+                ],
+                dropped_reasons=["highlight_evidence_not_found"],
             )
         ),
     ):
@@ -40,7 +49,26 @@ def test_ri_summarize_returns_highlights_and_narrative():
         "highlights": ["Receita cresceu 12%."],
         "narrative": "Trimestre de crescimento de receita.",
         "provider": "gemini",
+        "citations": [
+            {
+                "highlight": "Receita cresceu 12%.",
+                "excerpt": "Receita líquida cresceu 12% no trimestre.",
+                "page": 3,
+            }
+        ],
+        "dropped_claims": 1,
     }
+
+
+def test_ri_summarize_returns_422_when_nothing_is_supported():
+    with patch(
+        "ri.summary_service.RiSummaryService.summarize",
+        new=AsyncMock(side_effect=RiSummaryRejectedError("unsupported_claims")),
+    ):
+        response = client.post("/api/ri/summarize", json=VALID_PAYLOAD)
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "unsupported_claims"
 
 
 def test_ri_summarize_returns_422_when_guard_rejects():

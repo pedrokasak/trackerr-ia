@@ -213,15 +213,30 @@ async def ri_summarize(request: RiSummaryRequest):
     hash do conteudo — cada documento e resumido uma vez, nao uma vez por
     usuario.
 
+    Cada destaque volta com a citacao que o sustenta (TRA-239); o que o
+    documento nao sustenta e descartado e contado em `dropped_claims`.
+
     422 quando a saida do modelo e inutilizavel ou barrada pelo guardrail:
     o server trata qualquer nao-2xx como falha e cai no resumo estruturado.
     """
     try:
         result = await RiSummaryService.summarize(request)
+        if result.dropped_reasons:
+            # So os motivos: o texto do resumo nao vai pro log.
+            fastapi_logger.warning(
+                f"Resumo de RI ({request.document.ticker}) descartou "
+                f"{len(result.dropped_reasons)} afirmacao(oes): "
+                f"{', '.join(sorted(set(result.dropped_reasons)))}"
+            )
         return {
             "highlights": result.highlights,
             "narrative": result.narrative,
             "provider": result.provider,
+            "citations": [
+                {"highlight": item.text, "excerpt": item.excerpt, "page": item.page}
+                for item in result.citations
+            ],
+            "dropped_claims": len(result.dropped_reasons),
         }
     except RiSummaryRejectedError as e:
         fastapi_logger.warning(

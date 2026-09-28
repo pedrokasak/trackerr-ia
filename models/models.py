@@ -349,7 +349,22 @@ class RiSummaryRequest(BaseModel):
     )
 
 
+class RiSummaryCitation(BaseModel):
+    """
+    Trecho do documento que sustenta um destaque (TRA-239). `excerpt` e o
+    texto do PROPRIO documento, nao a copia do modelo; `page` vem dos
+    marcadores do PDF e e None quando o texto nao os tem.
+    """
+
+    highlight: str
+    excerpt: str
+    page: Optional[int] = None
+
+
 class RiSummaryResponse(BaseModel):
     highlights: List[str]
     narrative: str
     provider: Optional[str] = None
+    # Aditivos (TRA-239): quem so le `highlights`/`narrative` nao muda nada.
+    citations: List[RiSummaryCitation] = Field(default_factory=list)
+    dropped_claims: int = 0
