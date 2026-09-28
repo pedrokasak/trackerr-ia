@@ -34,6 +34,8 @@ from models.models import (
     SharedKnowledgeIngestResponse,
     InsightsRequest,
     InsightsResponse,
+    RiSummaryRequest,
+    RiSummaryResponse,
 )
 from insights.service import InsightsService
 from insights.producers import PRODUCERS as LEGACY_INSIGHT_PRODUCERS
@@ -48,6 +50,7 @@ from rag.shared_knowledge_service import (
 )
 from rag.ingestion_service import RagIngestionService, RagIngestItem
 from rag.query_service import RagQueryService
+from ri.summary_service import RiSummaryRejectedError, RiSummaryService
 
 load_dotenv()
 
@@ -196,6 +199,38 @@ async def portfolio_digest_narrate(facts: PortfolioDigestFactsInput):
     except Exception as e:
         fastapi_logger.error(f"Erro ao narrar digest de carteira: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/api/ri/summarize",
+    response_model=RiSummaryResponse,
+    dependencies=[Depends(require_service_token)],
+)
+async def ri_summarize(request: RiSummaryRequest):
+    """
+    Resume um documento de RI (TRA-238). O server manda o texto ja extraido
+    e os sinais calculados por regra, e guarda o resultado em cache pela
+    hash do conteudo — cada documento e resumido uma vez, nao uma vez por
+    usuario.
+
+    422 quando a saida do modelo e inutilizavel ou barrada pelo guardrail:
+    o server trata qualquer nao-2xx como falha e cai no resumo estruturado.
+    """
+    try:
+        result = await RiSummaryService.summarize(request)
+        return {
+            "highlights": result.highlights,
+            "narrative": result.narrative,
+            "provider": result.provider,
+        }
+    except RiSummaryRejectedError as e:
+        fastapi_logger.warning(
+            f"Resumo de RI rejeitado ({request.document.ticker}): {e.reason}"
+        )
+        raise HTTPException(status_code=422, detail=e.reason)
+    except Exception as e:
+        fastapi_logger.error(f"Erro ao resumir documento de RI: {e}")
+        raise HTTPException(status_code=500, detail="ri_summary_failed")
 
 
 @app.post(

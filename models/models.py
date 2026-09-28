@@ -310,3 +310,46 @@ class InsightsRequest(BaseModel):
 
 class InsightsResponse(BaseModel):
     insights: List[Insight]
+
+
+# ============================================
+# Resumo de documento de RI (TRA-238)
+#
+# Documento publico (CVM/site de RI), nao dado de usuario: sem user_id. O
+# server manda o texto ja extraido do PDF e os sinais estruturados que ele
+# mesmo calculou por regra; este servico so escreve destaques e narrativa.
+# ============================================
+
+# Teto de defesa do corpo. O server ja corta bem antes disso
+# (RI_SYNTHESIS_MAX_CHARS); o limite aqui so impede que um chamador mal
+# configurado mande o PDF inteiro de um formulario de referencia.
+RI_SUMMARY_MAX_CONTENT_CHARS = 400_000
+
+
+class RiSummaryDocumentInput(BaseModel):
+    ticker: str = Field(min_length=1, max_length=20)
+    company: str = Field(default="", max_length=200)
+    document_type: str = Field(default="unknown", max_length=60)
+    title: Optional[str] = Field(default=None, max_length=300)
+    period: Optional[str] = Field(default=None, max_length=40)
+    published_at: Optional[str] = Field(default=None, max_length=40)
+
+
+class RiStructuredSignalInput(BaseModel):
+    detected: bool = False
+    direction: Literal["up", "down", "neutral", "unknown"] = "unknown"
+    evidence: List[str] = Field(default_factory=list)
+
+
+class RiSummaryRequest(BaseModel):
+    document: RiSummaryDocumentInput
+    content: str = Field(min_length=1, max_length=RI_SUMMARY_MAX_CONTENT_CHARS)
+    structured_signals: Dict[str, RiStructuredSignalInput] = Field(
+        default_factory=dict
+    )
+
+
+class RiSummaryResponse(BaseModel):
+    highlights: List[str]
+    narrative: str
+    provider: Optional[str] = None
