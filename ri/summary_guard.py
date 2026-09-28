@@ -22,7 +22,7 @@ from typing import Iterable, Optional
 # dirigida ao leitor ("voce deveria vender", "recomendamos a compra").
 # "Venda" solta NAO entra: "Venda da subsidiaria concluida" e fato.
 DIRECTED_RECOMMENDATION_PATTERN = re.compile(
-    r"(?:^|[.!?]\s*)(?:compre|comprem|venda\s+(?:suas|seus|a\s+a[çc][ãa]o|o\s+papel|j[áa])|vendam|invista|invistam)\b"
+    r"(?:^|[.!?]\s*)(?:compre|comprem|venda\s+(?:suas|seus|a\s+a[çc][ãa]o|o\s+papel)|vendam|invista|invistam)\b"
     r"|\bvoc[êe]s?\s+(?:deve(?:ria)?m?|precisa(?:m)?|pode(?:m)?)\s+(?:comprar|vender|investir|aumentar|reduzir|zerar)\b"
     r"|\brecomend(?:amos|o)\s+(?:a\s+)?(?:compra|venda|que\s+voc[êe])\b"
     r"|\b(?:oportunidade\s+de\s+compra|hora\s+de\s+(?:comprar|vender))\b",

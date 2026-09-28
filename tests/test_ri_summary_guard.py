@@ -23,6 +23,14 @@ def test_accepts_factual_corporate_language():
     assert result.valid is True
 
 
+def test_accepts_sentence_starting_with_factual_sale():
+    result = validate_ri_summary(
+        highlights=["Venda já concluída da participação na distribuidora."],
+        narrative="",
+    )
+    assert result.valid is True
+
+
 def test_rejects_imperative_buy_or_sell():
     result = validate_ri_summary(
         highlights=["Compre a ação antes do próximo balanço."],
