@@ -143,7 +143,9 @@ Retorne APENAS JSON no formato:
             metadata=[document.ticker, document.company, document.period or ""],
         )
         citations = checked.highlights[:MAX_HIGHLIGHTS]
-        if not citations and not checked.narrative:
+        # Sem destaque sustentado nao ha resumo: a tela de RI mostra os
+        # destaques, nao a narrativa, e o server cachearia um resumo vazio.
+        if not citations:
             raise RiSummaryRejectedError("unsupported_claims")
 
         return RiSummaryResult(

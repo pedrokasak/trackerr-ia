@@ -154,8 +154,19 @@ def extract_identifiers(text: str) -> set:
     return found
 
 
-def unsupported_identifiers(claim: str, allowed: FrozenSet[str]) -> List[str]:
-    return sorted(identifier for identifier in extract_identifiers(claim) if identifier not in allowed)
+def unsupported_identifiers(
+    claim: str, allowed: FrozenSet[str], source: Optional["SourceIndex"] = None
+) -> List[str]:
+    """
+    Identificadores do `claim` fora de `allowed`. Com `source`, uma variacao
+    de espacamento tambem vale: "IFRS16" no resumo e "IFRS 16" no documento.
+    """
+    return sorted(
+        identifier
+        for identifier in extract_identifiers(claim)
+        if identifier not in allowed
+        and not (source is not None and _skeleton(identifier) in source.skeleton)
+    )
 
 
 def build_source_index(text: str) -> SourceIndex:
@@ -182,15 +193,45 @@ def locate_excerpt(index: SourceIndex, excerpt: str) -> Optional[int]:
     return span[0] if span else None
 
 
+def _is_number_char(text: str, position: int) -> bool:
+    return 0 <= position < len(text) and text[position].isdigit()
+
+
+def _cuts_number(text: str, start: int, end: int) -> bool:
+    """
+    O trecho comeca ou termina no MEIO de um numero do documento? O esqueleto
+    nao tem separador, entao "cresceu 12%" casa com o inicio de "cresceu
+    12,3%" — e o excerpt cortado ("cresceu 12") sustentaria o 12% arredondado.
+    """
+    if _is_number_char(text, start):
+        before = start - 1
+        if _is_number_char(text, before) or (
+            0 <= before < len(text) and text[before] in ".," and _is_number_char(text, before - 1)
+        ):
+            return True
+    if _is_number_char(text, end - 1):
+        if _is_number_char(text, end) or (
+            end < len(text) and text[end] in ".," and _is_number_char(text, end + 1)
+        ):
+            return True
+    return False
+
+
 def excerpt_span(index: SourceIndex, excerpt: str) -> Optional[Tuple[int, int]]:
     """Inicio e fim do trecho no texto original — o que o documento diz de fato."""
-    needle = _skeleton(excerpt or "")
+    needle = _skeleton(strip_page_markers(excerpt or ""))
     if len(needle) < MIN_EXCERPT_SKELETON:
         return None
     found = index.skeleton.find(needle)
-    if found < 0:
-        return None
-    return index.positions[found], index.positions[found + len(needle) - 1] + 1
+    while found >= 0:
+        start = index.positions[found]
+        end = index.positions[found + len(needle) - 1] + 1
+        if not _cuts_number(index.text, start, end):
+            return start, end
+        # Mesma frase pode aparecer de novo adiante, inteira (ex.: o numero
+        # do ano e o do trimestre): continua procurando em vez de desistir.
+        found = index.skeleton.find(needle, found + 1)
+    return None
 
 
 def page_at(index: SourceIndex, position: Optional[int]) -> Optional[int]:

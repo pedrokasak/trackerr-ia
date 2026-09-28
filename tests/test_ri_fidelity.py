@@ -122,6 +122,34 @@ def test_locates_excerpt_across_page_break():
     assert locate_excerpt(index, "8,1% superior ao 2T25. O EBITDA ajustado somou") is not None
 
 
+def test_excerpt_cannot_cut_a_number_at_its_end():
+    # O esqueleto nao tem separador: "cresceu 12%" seria prefixo de
+    # "cresceu 12,3%" — e o 12% arredondado passaria por sustentado.
+    index = build_source_index("A receita líquida cresceu 12,3% no trimestre.")
+    assert locate_excerpt(index, "A receita líquida cresceu 12%") is None
+    assert locate_excerpt(index, "A receita líquida cresceu 12,3%") is not None
+
+
+def test_excerpt_cannot_cut_a_number_at_its_start():
+    index = build_source_index("A margem foi de 34,1% no trimestre, estável na comparação anual.")
+    assert locate_excerpt(index, "1% no trimestre, estável na comparação anual") is None
+
+
+def test_excerpt_boundary_keeps_looking_past_a_cut_occurrence():
+    index = build_source_index(
+        "A receita cresceu 12,3% no ano. No trimestre, a receita cresceu 12% sobre o anterior."
+    )
+    position = locate_excerpt(index, "a receita cresceu 12% sobre o anterior")
+    assert position is not None
+    assert index.text[position:].startswith("a receita cresceu 12% sobre")
+
+
+def test_identifier_spacing_variant_is_found_in_the_source():
+    index = build_source_index("O efeito do IFRS 16 reduziu o EBITDA em R$ 10 milhões.")
+    assert unsupported_identifiers("IFRS16 reduziu o EBITDA", frozenset(), index) == []
+    assert unsupported_identifiers("CPLE6 reduziu o EBITDA", frozenset(), index) == ["CPLE6"]
+
+
 def test_page_comes_from_the_marker_that_closes_the_page():
     index = build_source_index(SOURCE)
     assert page_at(index, locate_excerpt(index, "A receita líquida atingiu R$ 12,3")) == 1

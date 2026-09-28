@@ -120,14 +120,27 @@ async def test_rejects_when_nothing_is_supported():
 @pytest.mark.asyncio
 async def test_plain_string_highlights_are_dropped_for_lack_of_evidence():
     provider = make_provider(
-        {"highlights": ["Receita líquida de R$ 12,3 bilhões."], "narrative": "Trimestre forte."}
+        {"highlights": ["Receita líquida de R$ 12,3 bilhões.", REVENUE], "narrative": ""}
     )
 
     result = await RiSummaryService.summarize(make_request(), provider=provider)
 
-    assert result.highlights == []
-    assert result.narrative == "Trimestre forte."
+    assert result.highlights == [REVENUE["text"]]
     assert result.dropped_reasons == ["highlight_evidence_not_found"]
+
+
+@pytest.mark.asyncio
+async def test_rejects_narrative_without_any_supported_highlight():
+    # A tela de RI mostra os destaques, nao a narrativa: sem destaque
+    # sustentado o usuario veria um "resumo por IA" vazio, cacheado por 30 dias.
+    provider = make_provider(
+        {"highlights": ["Receita líquida de R$ 12,3 bilhões."], "narrative": "Trimestre forte."}
+    )
+
+    with pytest.raises(RiSummaryRejectedError) as exc:
+        await RiSummaryService.summarize(make_request(), provider=provider)
+
+    assert exc.value.reason == "unsupported_claims"
 
 
 SUPPORTED_EVIDENCE = "A receita líquida atingiu R$ 12,3 bilhões, 8,1% superior ao 2T25"

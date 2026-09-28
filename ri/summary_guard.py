@@ -139,7 +139,7 @@ def enforce_fidelity(
         if unsupported_numbers(highlight.text, number_set(excerpt)):
             result.dropped.append("highlight_number_not_in_evidence")
             continue
-        if unsupported_identifiers(highlight.text, allowed_identifiers):
+        if unsupported_identifiers(highlight.text, allowed_identifiers, source):
             result.dropped.append("highlight_unknown_identifier")
             continue
         result.highlights.append(
@@ -153,7 +153,7 @@ def enforce_fidelity(
     narrative = str(narrative or "").strip()
     if narrative and (
         unsupported_numbers(narrative, source.numbers)
-        or unsupported_identifiers(narrative, allowed_identifiers)
+        or unsupported_identifiers(narrative, allowed_identifiers, source)
     ):
         # A narrativa nao tem trecho proprio: o teste e contra o documento
         # inteiro. Sem suporte, sai inteira — cortar frases do meio deixaria
