@@ -14,6 +14,11 @@ retornado tenta o primário e, em caso de falha (erro de API, timeout, chave
 ausente/inválida), cai automaticamente para o fallback antes de propagar o
 erro. Resolve o cenário do TRA-71 (Groq bloqueou o projeto inteiro a nível
 de conta) sem precisar de redeploy — ver especificação em TRA-203.
+
+Aceita uma LISTA separada por vírgula (TRA-250), tentada em ordem:
+`LLM_PROVIDER_FALLBACK=gemini,groq,nvidia`. Um fallback só não bastou em
+produção: o modelo gratuito do OpenRouter voltou 429 e o único fallback
+(NVIDIA) deu 504, com as chaves do Gemini e do Groq configuradas e sem uso.
 """
 
 import os
@@ -45,28 +50,45 @@ class LLMFactory:
         provider_name = os.getenv("LLM_PROVIDER", "gemini").lower().strip()
         primary = LLMFactory._build(provider_name)
 
-        fallback_name = os.getenv("LLM_PROVIDER_FALLBACK", "").lower().strip()
-        if not fallback_name:
+        fallback_names = LLMFactory._fallback_chain(provider_name)
+        if not fallback_names:
             logger.info(f"[LLMFactory] Usando provider: {provider_name}")
             return primary
 
-        if fallback_name == provider_name:
-            # Fallback igual ao primário não protege contra nada — a mesma
-            # conta/chave que falhou falharia de novo. Ignora em vez de
-            # lançar: um .env mal configurado não pode derrubar o boot.
-            logger.warning(
-                "[LLMFactory] LLM_PROVIDER_FALLBACK igual a LLM_PROVIDER "
-                "('%s') — ignorado, não protege contra nada.",
-                provider_name,
-            )
-            return primary
+        # Encadeia da última para a primeira: cada wrapper tenta o seu
+        # provider e, se ele estiver indisponível, passa para o resto da
+        # cadeia. `provider_name` continua sendo o do primário.
+        chain: LLMProvider = LLMFactory._build(fallback_names[-1])
+        for name in reversed(fallback_names[:-1]):
+            chain = FallbackLLMProvider(LLMFactory._build(name), chain)
 
-        fallback = LLMFactory._build(fallback_name)
         logger.info(
             f"[LLMFactory] Usando provider: {provider_name} "
-            f"(fallback: {fallback_name})"
+            f"(fallback: {', '.join(fallback_names)})"
         )
-        return FallbackLLMProvider(primary, fallback)
+        return FallbackLLMProvider(primary, chain)
+
+    @staticmethod
+    def _fallback_chain(provider_name: str) -> list:
+        """Nomes de fallback, em ordem, sem repetir nem incluir o primário."""
+        raw = os.getenv("LLM_PROVIDER_FALLBACK", "")
+        names = []
+        for item in raw.split(","):
+            name = item.lower().strip()
+            if not name or name in names:
+                continue
+            if name == provider_name:
+                # Fallback igual ao primário não protege contra nada — a mesma
+                # conta/chave que falhou falharia de novo. Ignora em vez de
+                # lançar: um .env mal configurado não pode derrubar o boot.
+                logger.warning(
+                    "[LLMFactory] LLM_PROVIDER_FALLBACK contém o próprio "
+                    "LLM_PROVIDER ('%s') — ignorado, não protege contra nada.",
+                    provider_name,
+                )
+                continue
+            names.append(name)
+        return names
 
     @staticmethod
     def _build(provider_name: str) -> LLMProvider:

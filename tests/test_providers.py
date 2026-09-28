@@ -121,6 +121,59 @@ class TestLLMFactory:
                 with pytest.raises(ValueError, match="não suportado"):
                     LLMFactory.get_provider()
 
+    def test_factory_aceita_cadeia_de_fallbacks_em_ordem(self):
+        # TRA-250: um fallback só não bastou — OpenRouter grátis 429 e NVIDIA 504.
+        with patch.dict(
+            "os.environ",
+            {
+                "LLM_PROVIDER": "openrouter",
+                "OPENROUTER_API_KEY": "fake-key",
+                "LLM_PROVIDER_FALLBACK": "gemini, groq ,nvidia,gemini,openrouter",
+                "GEMINI_API_KEY": "fake-key",
+                "GROQ_API_KEY": "fake-key",
+                "NVIDIA_API_KEY": "fake-key",
+            },
+            clear=True,
+        ):
+            from benchmark.providers.factory import LLMFactory
+
+            assert LLMFactory._fallback_chain("openrouter") == [
+                "gemini",
+                "groq",
+                "nvidia",
+            ]
+
+    @pytest.mark.asyncio
+    async def test_cadeia_tenta_cada_fallback_ate_um_responder(self):
+        from fastapi import HTTPException
+
+        from benchmark.providers.factory import LLMFactory
+
+        def fake(name, behavior):
+            provider = MagicMock()
+            provider.provider_name = name
+            provider.analyze = AsyncMock(side_effect=behavior)
+            return provider
+
+        built = {
+            "openrouter": fake("openrouter", HTTPException(status_code=500, detail="429 upstream")),
+            "nvidia": fake("nvidia", HTTPException(status_code=500, detail="504")),
+            "gemini": fake("gemini", [{"ok": True}]),
+            "groq": fake("groq", [{"never": True}]),
+        }
+        with patch.dict(
+            "os.environ",
+            {"LLM_PROVIDER": "openrouter", "LLM_PROVIDER_FALLBACK": "nvidia,gemini,groq"},
+            clear=True,
+        ), patch.object(LLMFactory, "_build", side_effect=lambda name: built[name]):
+            provider = LLMFactory.get_provider()
+            result = await provider.analyze("prompt")
+
+        assert result == {"ok": True}
+        assert provider.provider_name == "openrouter"
+        built["nvidia"].analyze.assert_awaited_once()
+        built["groq"].analyze.assert_not_awaited()
+
     def test_factory_raises_on_unknown_provider(self):
         with patch.dict("os.environ", {"LLM_PROVIDER": "openai"}):
             from benchmark.providers.factory import LLMFactory
