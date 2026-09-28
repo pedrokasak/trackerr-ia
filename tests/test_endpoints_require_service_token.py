@@ -25,6 +25,13 @@ PROTECTED_ENDPOINTS = [
     ("/api/rag/knowledge/ingest", {"knowledge_base": "fiscal", "items": []}),
     ("/api/chat", {"question": "oi"}),
     (
+        "/api/ri/summarize",
+        {
+            "document": {"ticker": "PETR4", "company": "Petrobras", "document_type": "earnings_release"},
+            "content": "Receita cresceu.",
+        },
+    ),
+    (
         "/api/insights",
         {"user_profile": {"user_id": "u1", "portfolio": {"assets": []}}},
     ),
