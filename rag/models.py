@@ -157,3 +157,60 @@ class RagQueryAuditLog(Base):
     __table_args__ = (
         Index("ix_rag_query_audit_log_user_id", "user_id"),
     )
+
+
+class RiDocumentChunk(Base):
+    """
+    Acervo de documentos de RI (TRA-264): o texto de cada documento entregue a
+    CVM, em chunks POR PAGINA, para o chat responder citando documento e
+    pagina.
+
+    Tabela propria, e nao `shared_knowledge_chunks`:
+    - a busca geral do RAG (`RagQueryService._retrieve`) mistura TODO o
+      acervo compartilhado em qualquer pergunta. Documento de RI de todas as
+      empresas ali poluiria as respostas sobre a carteira;
+    - aqui a busca e SEMPRE por emissor, e cada chunk carrega o documento e a
+      pagina que a citacao mostra;
+    - a ingestao compartilhada troca a base inteira de uma vez; documento de
+      RI chega um a um.
+
+    Sem `user_id`: documento publico da CVM, sem dado pessoal (mesma premissa
+    da TRA-87). Sem indice ivfflat, de proposito: ver a migracao 0006.
+    """
+
+    __tablename__ = "ri_document_chunks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # Identidade do documento dada pelo server (protocolo da CVM ou link).
+    document_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    # Codigo do emissor (PETR para PETR3/PETR4): o filtro de toda busca.
+    issuer: Mapped[str] = mapped_column(String(16), nullable=False)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False)
+    company: Mapped[str] = mapped_column(String(200), nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    category: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    document_type: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    period: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    published_at: Mapped[date] = mapped_column(Date, nullable=False)
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    # Pagina do PDF (marcadores do pdf-parse); None quando o texto nao os tem.
+    page: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
+    # Hash do TEXTO INTEIRO do documento, igual em todos os chunks dele:
+    # reindexar o mesmo documento com o mesmo texto nao faz nada.
+    document_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_ri_document_chunks_document_chunk",
+            "document_key",
+            "chunk_index",
+            unique=True,
+        ),
+        Index("ix_ri_document_chunks_issuer_published", "issuer", "published_at"),
+    )
