@@ -35,6 +35,23 @@ PROTECTED_ENDPOINTS = [
         "/api/insights",
         {"user_profile": {"user_id": "u1", "portfolio": {"assets": []}}},
     ),
+    # TRA-264: sem token, qualquer um com acesso de rede envenenaria o acervo
+    # de RI que o chat cita.
+    (
+        "/api/ri/index",
+        {
+            "document": {
+                "key": "k",
+                "issuer": "PETR",
+                "ticker": "PETR4",
+                "title": "Fato Relevante",
+                "published_at": "2026-09-28",
+                "source_url": "https://www.rad.cvm.gov.br/x",
+            },
+            "content": "texto",
+        },
+    ),
+    ("/api/ri/ask", {"issuer": "PETR", "question": "dividendos?"}),
 ]
 
 

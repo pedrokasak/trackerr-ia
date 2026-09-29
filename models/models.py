@@ -368,3 +368,71 @@ class RiSummaryResponse(BaseModel):
     # Aditivos (TRA-239): quem so le `highlights`/`narrative` nao muda nada.
     citations: List[RiSummaryCitation] = Field(default_factory=list)
     dropped_claims: int = 0
+
+
+# ============================================
+# Acervo de documentos de RI (TRA-264)
+# ============================================
+
+# Texto inteiro de um documento. O server guarda ate ~3 milhoes de caracteres
+# em cache; aqui entram 1,5 milhao — o indexador ainda corta em MAX_CHUNKS.
+RI_INDEX_MAX_CONTENT_CHARS = 1_500_000
+
+
+class RiIndexDocumentInput(BaseModel):
+    # Identidade do documento dada pelo server (protocolo da CVM ou link).
+    key: str = Field(min_length=1, max_length=128)
+    # Codigo do emissor (PETR para PETR3 e PETR4): o filtro de toda busca.
+    issuer: str = Field(min_length=1, max_length=16)
+    ticker: str = Field(min_length=1, max_length=20)
+    company: str = Field(default="", max_length=200)
+    title: str = Field(min_length=1, max_length=500)
+    category: Optional[str] = Field(default=None, max_length=120)
+    document_type: Optional[str] = Field(default=None, max_length=60)
+    period: Optional[str] = Field(default=None, max_length=40)
+    published_at: date
+    source_url: str = Field(min_length=1, max_length=2000)
+
+
+class RiIndexRequest(BaseModel):
+    document: RiIndexDocumentInput
+    # Texto como o pdf-parse extraiu, com os marcadores de pagina.
+    content: str = Field(min_length=1, max_length=RI_INDEX_MAX_CONTENT_CHARS)
+
+
+class RiIndexResponse(BaseModel):
+    status: Literal["indexed", "unchanged", "empty"]
+    chunks: int
+
+
+class RiAskRequest(BaseModel):
+    issuer: str = Field(min_length=1, max_length=16)
+    question: str = Field(min_length=1, max_length=500)
+    # Janela de datas opcional: "no ultimo ano".
+    published_after: Optional[date] = None
+
+
+class RiAskCitation(BaseModel):
+    document_key: str
+    title: str
+    category: Optional[str] = None
+    period: Optional[str] = None
+    published_at: date
+    source_url: str
+    # Pagina do PDF; None quando o texto nao tinha marcador de pagina.
+    page: Optional[int] = None
+    # Trecho do PROPRIO documento, nunca a copia do modelo.
+    excerpt: str
+
+
+class RiAskAnswerItem(BaseModel):
+    text: str
+    citation: RiAskCitation
+
+
+class RiAskResponse(BaseModel):
+    answer: List[RiAskAnswerItem]
+    # Nenhuma afirmacao sustentada pelos documentos: o chat diz que nao achou.
+    not_found: bool
+    provider: Optional[str] = None
+    dropped_claims: int = 0

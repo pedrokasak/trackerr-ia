@@ -36,6 +36,10 @@ from models.models import (
     InsightsResponse,
     RiSummaryRequest,
     RiSummaryResponse,
+    RiIndexRequest,
+    RiIndexResponse,
+    RiAskRequest,
+    RiAskResponse,
 )
 from insights.service import InsightsService
 from insights.producers import PRODUCERS as LEGACY_INSIGHT_PRODUCERS
@@ -51,6 +55,12 @@ from rag.shared_knowledge_service import (
 from rag.ingestion_service import RagIngestionService, RagIngestItem
 from rag.query_service import RagQueryService
 from ri.summary_service import RiSummaryRejectedError, RiSummaryService
+from ri.knowledge_service import (
+    RiAnswerRejectedError,
+    RiDocumentAnswerer,
+    RiDocumentIndexer,
+    RiDocumentMeta,
+)
 
 load_dotenv()
 
@@ -246,6 +256,108 @@ async def ri_summarize(request: RiSummaryRequest):
     except Exception as e:
         fastapi_logger.error(f"Erro ao resumir documento de RI: {e}")
         raise HTTPException(status_code=500, detail="ri_summary_failed")
+
+
+@app.post(
+    "/api/ri/index",
+    response_model=RiIndexResponse,
+    dependencies=[Depends(require_service_token)],
+)
+async def ri_index(
+    request: RiIndexRequest, session: AsyncSession = Depends(get_rag_session)
+):
+    """
+    Guarda o texto de um documento de RI no acervo (TRA-264), em chunks por
+    pagina. O server manda o texto que ja extraiu; mesmo documento com o
+    mesmo texto nao paga embedding de novo.
+    """
+    try:
+        document = request.document
+        indexer = RiDocumentIndexer(
+            session=session, embedding_provider=GeminiEmbeddingProvider()
+        )
+        result = await indexer.index(
+            RiDocumentMeta(
+                key=document.key,
+                issuer=document.issuer,
+                ticker=document.ticker,
+                company=document.company,
+                title=document.title,
+                category=document.category,
+                document_type=document.document_type,
+                period=document.period,
+                published_at=document.published_at,
+                source_url=document.source_url,
+            ),
+            request.content,
+        )
+        return {"status": result.status, "chunks": result.chunks}
+    except Exception as e:
+        fastapi_logger.error(f"Erro ao indexar documento de RI: {e}")
+        raise HTTPException(status_code=500, detail="ri_index_failed")
+
+
+@app.post(
+    "/api/ri/ask",
+    response_model=RiAskResponse,
+    dependencies=[Depends(require_service_token)],
+)
+async def ri_ask(
+    request: RiAskRequest, session: AsyncSession = Depends(get_rag_session)
+):
+    """
+    Responde uma pergunta sobre os documentos de RI de UM emissor (TRA-264).
+    Cada afirmacao volta com documento, pagina e o trecho real que a
+    sustenta; sem trecho que sustente, `not_found`.
+
+    422 quando a saida do modelo e barrada pelo guardrail (recomendacao,
+    preco-alvo): o server responde que nao conseguiu, sem texto do modelo.
+    """
+    try:
+        answerer = RiDocumentAnswerer(
+            session=session,
+            embedding_provider=GeminiEmbeddingProvider(),
+            llm_provider=LLMFactory.get_provider(),
+        )
+        result = await answerer.ask(
+            request.issuer, request.question, request.published_after
+        )
+        if result.dropped_reasons:
+            # So os motivos: o texto das afirmacoes nao vai pro log.
+            fastapi_logger.warning(
+                f"Resposta do acervo de RI ({request.issuer}) descartou "
+                f"{len(result.dropped_reasons)} afirmacao(oes): "
+                f"{', '.join(sorted(set(result.dropped_reasons)))}"
+            )
+        return {
+            "answer": [
+                {
+                    "text": item.text,
+                    "citation": {
+                        "document_key": item.chunk.document_key,
+                        "title": item.chunk.title,
+                        "category": item.chunk.category,
+                        "period": item.chunk.period,
+                        "published_at": item.chunk.published_at,
+                        "source_url": item.chunk.source_url,
+                        "page": item.page,
+                        "excerpt": item.excerpt,
+                    },
+                }
+                for item in result.items
+            ],
+            "not_found": result.not_found,
+            "provider": result.provider,
+            "dropped_claims": len(result.dropped_reasons),
+        }
+    except RiAnswerRejectedError as e:
+        fastapi_logger.warning(f"Resposta do acervo de RI rejeitada ({request.issuer}): {e.reason}")
+        raise HTTPException(status_code=422, detail=e.reason)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        fastapi_logger.error(f"Erro ao responder pelo acervo de RI: {e}")
+        raise HTTPException(status_code=500, detail="ri_ask_failed")
 
 
 @app.post(
