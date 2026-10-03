@@ -15,13 +15,13 @@ do TRA-71 com a Groq).
 
 import json
 import os
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from fastapi import HTTPException
 from fastapi.logger import logger
 from openai import OpenAI
 
-from .base import LLMProvider
+from .base import LLMProvider, ToolCall, ToolCallsResult, ToolSpec
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
@@ -82,6 +82,67 @@ class OpenRouterProvider(LLMProvider):
         except Exception as e:
             logger.error(f"[{self.provider_name}] Erro: {e}")
             raise HTTPException(status_code=500, detail=str(e))
+
+    async def call_tools(
+        self, system: str, prompt: str, tools: List[ToolSpec]
+    ) -> ToolCallsResult:
+        """
+        Tool calling no formato Chat Completions (TRA-241), que a OpenRouter
+        repassa ao modelo. É o provider de produção: sem este método, o
+        roteador do chat nunca rodaria lá. Modelo sem suporte a tools volta
+        erro da API, e a cadeia de fallback segue.
+        """
+        try:
+            completion = self._client.chat.completions.create(
+                model=self._model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ],
+                tools=[
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": tool.name,
+                            "description": tool.description,
+                            "parameters": tool.parameters,
+                        },
+                    }
+                    for tool in tools
+                ],
+                tool_choice="auto",
+                temperature=0,
+                max_tokens=1024,
+            )
+        except Exception as e:
+            logger.error(f"[{self.provider_name}] Erro no tool calling: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+        message = completion.choices[0].message
+        calls: List[ToolCall] = []
+        for tool_call in getattr(message, "tool_calls", None) or []:
+            function = getattr(tool_call, "function", None)
+            if not function or not function.name:
+                continue
+            try:
+                arguments = json.loads(function.arguments or "{}")
+            except json.JSONDecodeError:
+                # Argumento quebrado não vira chute: a chamada sai sem eles, e
+                # o server decide se a ferramenta roda assim.
+                arguments = {}
+            calls.append(
+                ToolCall(
+                    name=function.name,
+                    arguments=arguments if isinstance(arguments, dict) else {},
+                )
+            )
+        usage = getattr(completion, "usage", None)
+        return ToolCallsResult(
+            calls=calls,
+            provider=self.provider_name,
+            input_tokens=int(getattr(usage, "prompt_tokens", 0) or 0),
+            output_tokens=int(getattr(usage, "completion_tokens", 0) or 0),
+        )
 
     def _parse_json(self, response_text: str) -> Dict[str, Any]:
         try:

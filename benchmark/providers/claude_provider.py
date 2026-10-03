@@ -5,13 +5,13 @@ Usa a lib anthropic já presente no projeto.
 
 import json
 import os
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import anthropic
 from fastapi import HTTPException
 from fastapi.logger import logger
 
-from .base import LLMProvider
+from .base import LLMProvider, ToolCall, ToolCallsResult, ToolSpec
 
 
 class ClaudeProvider(LLMProvider):
@@ -58,6 +58,45 @@ class ClaudeProvider(LLMProvider):
         except Exception as e:
             logger.error(f"[{self.provider_name}] Erro inesperado: {e}")
             raise HTTPException(status_code=500, detail=str(e))
+
+    async def call_tools(
+        self, system: str, prompt: str, tools: List[ToolSpec]
+    ) -> ToolCallsResult:
+        """Tool use nativo da Anthropic (TRA-241): blocos `tool_use` da resposta."""
+        try:
+            message = self._client.messages.create(
+                model=self._model,
+                max_tokens=1024,
+                system=system,
+                tools=[
+                    {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "input_schema": tool.parameters,
+                    }
+                    for tool in tools
+                ],
+                # "auto": sem ferramenta que sirva, o modelo pode não chamar
+                # nenhuma — e isso é resposta válida.
+                tool_choice={"type": "auto"},
+                messages=[{"role": "user", "content": prompt}],
+            )
+        except Exception as e:
+            logger.error(f"[{self.provider_name}] Erro no tool use: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+        calls = [
+            ToolCall(name=block.name, arguments=dict(block.input or {}))
+            for block in message.content
+            if getattr(block, "type", None) == "tool_use"
+        ]
+        usage = getattr(message, "usage", None)
+        return ToolCallsResult(
+            calls=calls,
+            provider=self.provider_name,
+            input_tokens=int(getattr(usage, "input_tokens", 0) or 0),
+            output_tokens=int(getattr(usage, "output_tokens", 0) or 0),
+        )
 
     def _parse_json(self, response_text: str) -> Dict[str, Any]:
         try:

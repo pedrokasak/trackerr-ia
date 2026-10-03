@@ -6,13 +6,14 @@ Requer GEMINI_API_KEY no .env e dependência `google-genai` instalada.
 import asyncio
 import json
 import os
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from fastapi import HTTPException
 from fastapi.logger import logger
 from google import genai
+from google.genai import types
 
-from .base import LLMProvider
+from .base import LLMProvider, ToolCall, ToolCallsResult, ToolSpec
 
 _RETRYABLE_CODES = (503, 429, 500)
 _MAX_RETRIES = 3
@@ -76,6 +77,54 @@ class GeminiProvider(LLMProvider):
                     raise HTTPException(status_code=500, detail=err_str)
 
         raise HTTPException(status_code=503, detail=str(last_exc))
+
+    async def call_tools(
+        self, system: str, prompt: str, tools: List[ToolSpec]
+    ) -> ToolCallsResult:
+        """
+        Function calling nativo do Gemini (TRA-241). Modo AUTO: sem função que
+        sirva, o modelo pode não chamar nenhuma. As funções nunca rodam aqui —
+        só as declarações vão ao modelo.
+        """
+        config = types.GenerateContentConfig(
+            system_instruction=system,
+            temperature=0,
+            tools=[
+                types.Tool(
+                    function_declarations=[
+                        types.FunctionDeclaration(
+                            name=tool.name,
+                            description=tool.description,
+                            parameters_json_schema=tool.parameters,
+                        )
+                        for tool in tools
+                    ]
+                )
+            ],
+            tool_config=types.ToolConfig(
+                function_calling_config=types.FunctionCallingConfig(mode="AUTO")
+            ),
+        )
+        try:
+            response = self._client.models.generate_content(
+                model=self._model, contents=prompt, config=config
+            )
+        except Exception as e:
+            logger.error(f"[{self.provider_name}] Erro no function calling: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+        calls = [
+            ToolCall(name=call.name, arguments=dict(call.args or {}))
+            for call in (response.function_calls or [])
+            if call.name
+        ]
+        usage = getattr(response, "usage_metadata", None)
+        return ToolCallsResult(
+            calls=calls,
+            provider=self.provider_name,
+            input_tokens=int(getattr(usage, "prompt_token_count", 0) or 0),
+            output_tokens=int(getattr(usage, "candidates_token_count", 0) or 0),
+        )
 
     def _parse_json(self, response_text: str) -> Dict[str, Any]:
         try:

@@ -52,6 +52,15 @@ PROTECTED_ENDPOINTS = [
         },
     ),
     ("/api/ri/ask", {"issuer": "PETR", "question": "dividendos?"}),
+    # TRA-241: sem token, qualquer um com acesso de rede gastaria a conta de
+    # LLM do roteador.
+    (
+        "/api/chat/plan",
+        {
+            "question": "risco?",
+            "tools": [{"name": "portfolio_risk", "description": "Risco."}],
+        },
+    ),
 ]
 
 
