@@ -18,12 +18,12 @@ provider, nunca uma exceção. O fallback só existe para "o provider não
 respondeu", não para "o provider respondeu algo inesperado".
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from fastapi import HTTPException
 from fastapi.logger import logger
 
-from .base import LLMProvider
+from .base import LLMProvider, ToolCallingNotSupported, ToolCallsResult, ToolSpec
 
 # ValueError: API key ausente/invalida (config errada = provider indisponivel
 # tanto quanto um 500 seria). HTTPException: todo erro de rede/API dos
@@ -66,3 +66,23 @@ class FallbackLLMProvider(LLMProvider):
                 self._fallback.provider_name,
             )
             return result
+
+    async def call_tools(
+        self, system: str, prompt: str, tools: List[ToolSpec]
+    ) -> ToolCallsResult:
+        """
+        Mesma cadeia do `analyze` (TRA-241). Primário sem tool-calling nativo
+        também passa para o próximo: o primeiro da cadeia que souber chamar
+        ferramentas responde.
+        """
+        try:
+            return await self._primary.call_tools(system, prompt, tools)
+        except (*_UNAVAILABLE_ERRORS, ToolCallingNotSupported) as primary_error:
+            logger.warning(
+                "[LLMFactory] Provider '%s' sem tool calling agora (%s); "
+                "tentando fallback '%s'.",
+                self._primary.provider_name,
+                type(primary_error).__name__,
+                self._fallback.provider_name,
+            )
+            return await self._fallback.call_tools(system, prompt, tools)

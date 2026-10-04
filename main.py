@@ -40,7 +40,11 @@ from models.models import (
     RiIndexResponse,
     RiAskRequest,
     RiAskResponse,
+    ChatPlanRequest,
+    ChatPlanResponse,
 )
+from benchmark.providers.base import ToolSpec
+from chat.tool_planner import SingleStepToolRuntime
 from insights.service import InsightsService
 from insights.producers import PRODUCERS as LEGACY_INSIGHT_PRODUCERS
 from benchmark.providers.factory import LLMFactory
@@ -358,6 +362,56 @@ async def ri_ask(
     except Exception as e:
         fastapi_logger.error(f"Erro ao responder pelo acervo de RI: {e}")
         raise HTTPException(status_code=500, detail="ri_ask_failed")
+
+
+@app.post(
+    "/api/chat/plan",
+    response_model=ChatPlanResponse,
+    dependencies=[Depends(require_service_token)],
+)
+async def chat_plan(request: ChatPlanRequest):
+    """
+    Roteador do chat com tool-calling (TRA-241). Escolhe quais intenções
+    determinísticas do server respondem à pergunta: de 1 a 3 chamadas, com
+    os tickers. Não executa nada nem responde à pergunta; o server executa e
+    monta a resposta, sem número vindo do modelo.
+
+    Sem provider com tool calling na cadeia: 200 com `reason: not_supported`,
+    e o server responde pela rota de antes.
+    """
+    try:
+        runtime = SingleStepToolRuntime(LLMFactory.get_provider())
+        plan = await runtime.plan(
+            request.question,
+            [
+                ToolSpec(
+                    name=tool.name,
+                    description=tool.description,
+                    parameters=tool.parameters,
+                )
+                for tool in request.tools
+            ],
+            request.max_calls,
+        )
+        # Só nomes e contagens no log: a pergunta é do usuário.
+        fastapi_logger.info(
+            f"Roteador do chat: {len(plan.calls)} chamada(s) "
+            f"[{', '.join(call.name for call in plan.calls)}] "
+            f"via {plan.provider or '-'} ({plan.reason or 'ok'})"
+        )
+        return {
+            "calls": [
+                {"name": call.name, "arguments": call.arguments}
+                for call in plan.calls
+            ],
+            "provider": plan.provider,
+            "input_tokens": plan.input_tokens,
+            "output_tokens": plan.output_tokens,
+            "reason": plan.reason,
+        }
+    except Exception as e:
+        fastapi_logger.error(f"Erro no roteador do chat: {type(e).__name__}")
+        raise HTTPException(status_code=502, detail="chat_plan_failed")
 
 
 @app.post(
