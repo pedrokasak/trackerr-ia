@@ -438,6 +438,42 @@ class RiAskResponse(BaseModel):
     dropped_claims: int = 0
 
 
+# --- Roteador do chat com tool-calling (TRA-241) ---------------------------
+# O server manda as intenções determinísticas como ferramentas; o modelo só
+# escolhe quais chamar. Tetos de tamanho: a lista vem do server, mas um
+# catálogo gigante seria prompt caro sem motivo.
+
+
+class ChatToolSpec(BaseModel):
+    name: str = Field(min_length=1, max_length=64, pattern=r"^[a-z][a-z0-9_]*$")
+    description: str = Field(min_length=1, max_length=600)
+    # JSON schema dos argumentos (objeto). Sem argumentos: objeto vazio.
+    parameters: Dict[str, Any] = Field(
+        default_factory=lambda: {"type": "object", "properties": {}}
+    )
+
+
+class ChatPlanRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=1000)
+    tools: List[ChatToolSpec] = Field(min_length=1, max_length=40)
+    max_calls: int = Field(default=3, ge=1, le=3)
+
+
+class ChatPlannedCall(BaseModel):
+    name: str
+    arguments: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ChatPlanResponse(BaseModel):
+    calls: List[ChatPlannedCall]
+    provider: Optional[str] = None
+    input_tokens: int = 0
+    output_tokens: int = 0
+    # 'no_tool' (nenhuma ferramenta serve) ou 'not_supported' (nenhum
+    # provider da cadeia tem tool calling). None quando há chamadas.
+    reason: Optional[str] = None
+
+
 # --- Avaliação offline das respostas de IA (TRA-242) ------------------------
 # O server manda amostras do chat SEM user_id; o RAG entra pela auditoria
 # deste serviço. A resposta é só agregado: nenhum texto volta.
