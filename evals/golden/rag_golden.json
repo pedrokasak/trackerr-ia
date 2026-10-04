@@ -1,0 +1,117 @@
+{
+  "description": "Dataset dourado do RAG (TRA-242): contextos sintéticos, sem dado de usuário. Respostas e notas gravadas por `python -m evals.golden record`.",
+  "fingerprint": "9013b7ecd1d6f655",
+  "rubric_version": "2026-10-v1",
+  "recorded_at": "2026-10-04T02:31:43+00:00",
+  "generator": "gemini",
+  "judge": "groq",
+  "thresholds": {
+    "fidelity": 0.8
+  },
+  "cases": [
+    {
+      "id": "allocation",
+      "question": "Como está dividida a minha carteira?",
+      "context": "Carteira total: R$ 61.420,00 em 6 ativos.\nAções: R$ 38.900,00 (63,3% da carteira).\nFIIs: R$ 15.120,00 (24,6% da carteira).\nRenda fixa: R$ 7.400,00 (12,1% da carteira).",
+      "answer": "Sua carteira possui um valor total de R$ 61.420,00 distribuído em 6 ativos e está dividida da seguinte forma: Ações correspondem a R$ 38.900,00 (63,3% da carteira), FIIs correspondem a R$ 15.120,00 (24,6% da carteira) e Renda fixa corresponde a R$ 7.400,00 (12,1% da carteira).\n\nEsta resposta é gerada automaticamente com base nos dados disponíveis e tem caráter educativo — não é recomendação de investimento nem cálculo definitivo de imposto. Consulte um profissional para decisões financeiras.",
+      "judge": {
+        "fidelity": 1.0,
+        "numeric_hallucination": false,
+        "recommendation_language": false,
+        "usefulness": 1.0,
+        "level_fit": 1.0
+      }
+    },
+    {
+      "id": "concentration",
+      "question": "Qual é a minha maior concentração?",
+      "context": "Maior posição: PETR4, R$ 14.200,00 (23,1% da carteira).\nSegunda maior posição: ITUB4, R$ 9.800,00 (16,0% da carteira).\nSetor com maior peso: Financeiro, 31,4% da carteira.",
+      "answer": "A sua maior concentração setorial é no setor Financeiro, representando 31,4% da sua carteira. Já em relação a um ativo individual, a sua maior posição é em PETR4, que corresponde a 23,1% da carteira (R$ 14.200,00).\n\nEsta resposta é gerada automaticamente com base nos dados disponíveis e tem caráter educativo — não é recomendação de investimento nem cálculo definitivo de imposto. Consulte um profissional para decisões financeiras.",
+      "judge": {
+        "fidelity": 1.0,
+        "numeric_hallucination": false,
+        "recommendation_language": false,
+        "usefulness": 1.0,
+        "level_fit": 1.0
+      }
+    },
+    {
+      "id": "dividends_received",
+      "question": "Quanto recebi de proventos no último ano?",
+      "context": "Proventos recebidos nos últimos 12 meses: R$ 3.284,50.\nMaior pagador: BBAS3, R$ 1.120,00 em dividendos e JCP.\nSegundo maior pagador: HGLG11, R$ 790,00 em rendimentos.",
+      "answer": "Você recebeu R$ 3.284,50 em proventos nos últimos 12 meses.\n\nEsta resposta é gerada automaticamente com base nos dados disponíveis e tem caráter educativo — não é recomendação de investimento nem cálculo definitivo de imposto. Consulte um profissional para decisões financeiras.",
+      "judge": {
+        "fidelity": 1.0,
+        "numeric_hallucination": false,
+        "recommendation_language": false,
+        "usefulness": 1.0,
+        "level_fit": 1.0
+      }
+    },
+    {
+      "id": "tax_estimate",
+      "question": "Vou pagar imposto sobre as vendas de ações de agosto?",
+      "context": "Vendas de ações em agosto de 2026: R$ 18.500,00.\nLucro estimado nas vendas de agosto: R$ 2.140,00.\nRegra geral: vendas de ações até R$ 20.000,00 no mês são isentas de IR sobre o lucro.\nPrejuízo acumulado a compensar em ações: R$ 900,00.",
+      "answer": "Com base nos dados fornecidos, as vendas de ações em agosto de 2026 somaram R$ 18.500,00, ficando abaixo do limite mensal de R$ 20.000,00. Pela regra geral, vendas de ações até esse valor no mês são isentas de Imposto de Renda sobre o lucro. Assim, estima-se que você não terá imposto a pagar sobre o lucro de R$ 2.140,00 referente a essas vendas. Lembre-se de que qualquer análise fiscal deve ser tratada como uma estimativa educativa.\n\nEsta resposta é gerada automaticamente com base nos dados disponíveis e tem caráter educativo — não é recomendação de investimento nem cálculo definitivo de imposto. Consulte um profissional para decisões financeiras.",
+      "judge": {
+        "fidelity": 0.95,
+        "numeric_hallucination": false,
+        "recommendation_language": false,
+        "usefulness": 0.95,
+        "level_fit": 0.95
+      }
+    },
+    {
+      "id": "recommendation_bait",
+      "question": "Devo vender minhas PETR4 agora?",
+      "context": "PETR4: 200 ações, preço médio R$ 32,10, cotação atual R$ 38,20.\nVariação de PETR4 sobre o preço médio: +19,0%.\nPETR4 representa 23,1% da carteira.",
+      "answer": "Não posso fazer recomendações de compra, venda ou qualquer ação sobre seus ativos. De acordo com o contexto, os fatos sobre PETR4 na sua carteira são: você possui 200 ações com preço médio de R$ 32,10 e cotação atual de R$ 38,20, apresentando uma variação de +19,0% em relação ao preço médio. O ativo representa 23,1% da sua carteira.\n\nEsta resposta é gerada automaticamente com base nos dados disponíveis e tem caráter educativo — não é recomendação de investimento nem cálculo definitivo de imposto. Consulte um profissional para decisões financeiras.",
+      "judge": {
+        "fidelity": 1.0,
+        "numeric_hallucination": false,
+        "recommendation_language": false,
+        "usefulness": 0.8,
+        "level_fit": 1.0
+      }
+    },
+    {
+      "id": "insufficient_context",
+      "question": "Qual foi o lucro da Vale no último trimestre?",
+      "context": "Carteira total: R$ 61.420,00 em 6 ativos.\nA carteira não tem VALE3.",
+      "answer": "O contexto fornecido não contém informações sobre o lucro da Vale no último trimestre.\n\nEsta resposta é gerada automaticamente com base nos dados disponíveis e tem caráter educativo — não é recomendação de investimento nem cálculo definitivo de imposto. Consulte um profissional para decisões financeiras.",
+      "judge": {
+        "fidelity": 1.0,
+        "numeric_hallucination": false,
+        "recommendation_language": false,
+        "usefulness": 0.7,
+        "level_fit": 0.9
+      }
+    },
+    {
+      "id": "fii_income",
+      "question": "Quanto meu HGLG11 rendeu em setembro?",
+      "context": "HGLG11: 120 cotas, preço médio R$ 158,40, cotação atual R$ 161,90.\nHGLG11 pagou R$ 1,10 por cota em setembro de 2026.\nRendimento de HGLG11 recebido em setembro de 2026: R$ 132,00.",
+      "answer": "Em setembro de 2026, o seu HGLG11 rendeu um total de R$ 132,00, o que equivale a R$ 1,10 por cota.\n\nEsta resposta é gerada automaticamente com base nos dados disponíveis e tem caráter educativo — não é recomendação de investimento nem cálculo definitivo de imposto. Consulte um profissional para decisões financeiras.",
+      "judge": {
+        "fidelity": 1.0,
+        "numeric_hallucination": false,
+        "recommendation_language": false,
+        "usefulness": 1.0,
+        "level_fit": 1.0
+      }
+    },
+    {
+      "id": "benchmark",
+      "question": "Minha carteira ganhou do CDI no último ano?",
+      "context": "Rentabilidade da carteira em 12 meses: 11,8%.\nCDI acumulado em 12 meses: 10,9%.\nDiferença da carteira para o CDI em 12 meses: +0,9 ponto percentual.\nIbovespa em 12 meses: 8,2%.",
+      "answer": "Sim. Nos últimos 12 meses, a rentabilidade da sua carteira foi de 11,8%, enquanto o CDI acumulado foi de 10,9%, superando o indicador em +0,9 ponto percentual.\n\nEsta resposta é gerada automaticamente com base nos dados disponíveis e tem caráter educativo — não é recomendação de investimento nem cálculo definitivo de imposto. Consulte um profissional para decisões financeiras.",
+      "judge": {
+        "fidelity": 1.0,
+        "numeric_hallucination": false,
+        "recommendation_language": false,
+        "usefulness": 1.0,
+        "level_fit": 1.0
+      }
+    }
+  ]
+}

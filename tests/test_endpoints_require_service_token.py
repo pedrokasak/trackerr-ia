@@ -52,6 +52,9 @@ PROTECTED_ENDPOINTS = [
         },
     ),
     ("/api/ri/ask", {"issuer": "PETR", "question": "dividendos?"}),
+    # TRA-242: sem token, qualquer um gastaria a conta de LLM do juiz e leria
+    # as métricas de qualidade.
+    ("/api/evals/run", {"items": []}),
 ]
 
 

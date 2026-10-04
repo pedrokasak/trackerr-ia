@@ -69,6 +69,15 @@ class LLMFactory:
         return FallbackLLMProvider(primary, chain)
 
     @staticmethod
+    def get_named_provider(provider_name: str) -> LLMProvider:
+        """
+        Um provider pelo nome, sem fallback (TRA-242): o juiz da avaliação
+        precisa ser um modelo específico, diferente do gerador — cair para
+        outro provider em silêncio mudaria quem dá a nota.
+        """
+        return LLMFactory._build(provider_name.lower().strip())
+
+    @staticmethod
     def _fallback_chain(provider_name: str) -> list:
         """Nomes de fallback, em ordem, sem repetir nem incluir o primário."""
         raw = os.getenv("LLM_PROVIDER_FALLBACK", "")

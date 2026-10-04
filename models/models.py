@@ -436,3 +436,45 @@ class RiAskResponse(BaseModel):
     not_found: bool
     provider: Optional[str] = None
     dropped_claims: int = 0
+
+
+# --- Avaliação offline das respostas de IA (TRA-242) ------------------------
+# O server manda amostras do chat SEM user_id; o RAG entra pela auditoria
+# deste serviço. A resposta é só agregado: nenhum texto volta.
+
+
+class EvalItemModel(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    route: Literal["regex", "tool_calling", "rag"]
+    intent: str = Field(min_length=1, max_length=64)
+    question: str = Field(min_length=1, max_length=2000)
+    answer: str = Field(min_length=1, max_length=6000)
+    context: Optional[str] = Field(default=None, max_length=12000)
+    level: Literal["beginner", "intermediate", "advanced"] = "intermediate"
+
+
+class EvalRunRequest(BaseModel):
+    items: List[EvalItemModel] = Field(default_factory=list, max_length=120)
+    window_days: int = Field(default=7, ge=1, le=31)
+    max_rag_samples: int = Field(default=30, ge=0, le=100)
+
+
+class EvalSummary(BaseModel):
+    count: int
+    judged: int
+    fidelity: Optional[float] = None
+    numeric_hallucination_rate: Optional[float] = None
+    recommendation_rate: Optional[float] = None
+    usefulness: Optional[float] = None
+    level_fit: Optional[float] = None
+    disclaimer_rate: Optional[float] = None
+
+
+class EvalRunResponse(BaseModel):
+    rubric_version: str
+    judge_provider: Optional[str] = None
+    prompt_fingerprint: str
+    totals: Dict[str, int]
+    by_route: Dict[str, EvalSummary]
+    by_intent: Dict[str, EvalSummary]
+    guard: Dict[str, Optional[float]]
