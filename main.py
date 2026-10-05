@@ -42,9 +42,15 @@ from models.models import (
     RiAskResponse,
     ChatPlanRequest,
     ChatPlanResponse,
+    EvalRunRequest,
+    EvalRunResponse,
 )
 from benchmark.providers.base import ToolSpec
 from chat.tool_planner import SingleStepToolRuntime
+from evals.fingerprint import prompt_fingerprint
+from evals.judge import LlmJudge, build_judge_provider
+from evals.rag_sampler import sample_rag_items
+from evals.service import EvalItem, EvalService
 from insights.service import InsightsService
 from insights.producers import PRODUCERS as LEGACY_INSIGHT_PRODUCERS
 from benchmark.providers.factory import LLMFactory
@@ -412,6 +418,62 @@ async def chat_plan(request: ChatPlanRequest):
     except Exception as e:
         fastapi_logger.error(f"Erro no roteador do chat: {type(e).__name__}")
         raise HTTPException(status_code=502, detail="chat_plan_failed")
+
+
+@app.post(
+    "/api/evals/run",
+    response_model=EvalRunResponse,
+    dependencies=[Depends(require_service_token)],
+)
+async def evals_run(
+    request: EvalRunRequest, session: AsyncSession = Depends(get_rag_session)
+):
+    """
+    Avaliação offline das respostas de IA (TRA-242), chamada pelo job
+    semanal do server.
+
+    Junta as amostras do chat (regex e roteador com tools, mandadas pelo
+    server, sem `user_id`) com as do RAG (auditoria daqui). Depois tira a
+    PII, roda as checagens determinísticas e o juiz, um provider diferente do
+    gerador. A resposta é só agregado por rota e por intenção, sem nenhum
+    texto. Sem juiz configurado, as notas do juiz ficam vazias e as checagens
+    determinísticas seguem.
+    """
+    try:
+        rag_items, stats = await sample_rag_items(
+            session, request.window_days, request.max_rag_samples
+        )
+        judge_provider = build_judge_provider()
+        service = EvalService(LlmJudge(judge_provider) if judge_provider else None)
+        items = [
+            EvalItem(
+                id=item.id,
+                route=item.route,
+                intent=item.intent,
+                question=item.question,
+                answer=item.answer,
+                context=item.context,
+                level=item.level,
+            )
+            for item in request.items
+        ] + rag_items
+        report = await service.evaluate(items, stats)
+        fastapi_logger.info(
+            f"Avaliação offline: {report.totals['evaluated']} avaliada(s), "
+            f"{report.totals['judged']} com nota, {report.totals['pii_blocked']} barrada(s) por PII"
+        )
+        return {
+            "rubric_version": report.rubric_version,
+            "judge_provider": report.judge_provider,
+            "prompt_fingerprint": prompt_fingerprint(),
+            "totals": report.totals,
+            "by_route": report.by_route,
+            "by_intent": report.by_intent,
+            "guard": report.guard,
+        }
+    except Exception as e:
+        fastapi_logger.error(f"Erro na avaliação offline: {type(e).__name__}")
+        raise HTTPException(status_code=500, detail="eval_run_failed")
 
 
 @app.post(

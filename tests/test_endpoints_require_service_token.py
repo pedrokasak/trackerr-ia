@@ -61,6 +61,9 @@ PROTECTED_ENDPOINTS = [
             "tools": [{"name": "portfolio_risk", "description": "Risco."}],
         },
     ),
+    # TRA-242: sem token, qualquer um gastaria a conta de LLM do juiz e leria
+    # as métricas de qualidade.
+    ("/api/evals/run", {"items": []}),
 ]
 
 
