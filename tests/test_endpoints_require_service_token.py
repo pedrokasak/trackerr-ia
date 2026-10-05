@@ -64,6 +64,20 @@ PROTECTED_ENDPOINTS = [
     # TRA-242: sem token, qualquer um gastaria a conta de LLM do juiz e leria
     # as métricas de qualidade.
     ("/api/evals/run", {"items": []}),
+    # TRA-269: sem token, qualquer um gastaria a conta de LLM do veredito.
+    (
+        "/api/fixed-income/verdict",
+        {
+            "scenario": {
+                "principal": 10000,
+                "years": 3,
+                "cdi_pct": 13.65,
+                "ipca_pct": 4.5,
+                "ir_rate_pct": 15,
+            },
+            "ranking": [],
+        },
+    ),
 ]
 
 
