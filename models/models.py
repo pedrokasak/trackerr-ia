@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 # ============================================
@@ -165,6 +165,43 @@ class PortfolioDigestFactsInput(BaseModel):
 
 
 class DigestNarrateResponse(BaseModel):
+    text: str
+
+
+# ============================================
+# Veredito do comparador de renda fixa (TRA-269)
+#
+# O server (NestJS) calcula o ranking e manda fatos fechados; a IA so
+# escreve a prosa. Nenhum dado pessoal viaja: so o cenario e taxas publicas.
+# Os limites abaixo barram payload absurdo antes de virar prompt de LLM.
+# ============================================
+class FixedIncomeScenarioInput(BaseModel):
+    principal: float = Field(gt=0, le=1_000_000_000)
+    years: float = Field(gt=0, le=30)
+    cdi_pct: float = Field(ge=-100, le=1000)
+    ipca_pct: float = Field(ge=-100, le=1000)
+    ir_rate_pct: float = Field(ge=0, le=100)
+
+
+class FixedIncomeRowInput(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    kind: str = Field(min_length=1, max_length=40)
+    exempt: bool
+    gross_annual_pct: float
+    net_annual_pct: float
+    real_annual_pct: float
+    net_final: float
+
+
+class FixedIncomeVerdictRequest(BaseModel):
+    scenario: FixedIncomeScenarioInput
+    ranking: List[FixedIncomeRowInput] = Field(min_length=2, max_length=12)
+    points: List[Annotated[str, Field(max_length=500)]] = Field(
+        default_factory=list, max_length=5
+    )
+
+
+class FixedIncomeVerdictResponse(BaseModel):
     text: str
 
 

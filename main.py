@@ -8,6 +8,7 @@ import os
 import logging
 import uvicorn
 
+from fixed_income.verdict_service import FixedIncomeVerdictService
 from benchmark.benchmark import (
     AIAnalysisService,
     DigestNarrationService,
@@ -24,6 +25,8 @@ from models.models import (
     ChatResponse,
     PortfolioDigestFactsInput,
     DigestNarrateResponse,
+    FixedIncomeVerdictRequest,
+    FixedIncomeVerdictResponse,
     RagQueryRequest,
     RagQueryResponse,
     RagIngestRequest,
@@ -218,6 +221,26 @@ async def portfolio_digest_narrate(facts: PortfolioDigestFactsInput):
         return {"text": text}
     except Exception as e:
         fastapi_logger.error(f"Erro ao narrar digest de carteira: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/api/fixed-income/verdict",
+    response_model=FixedIncomeVerdictResponse,
+    dependencies=[Depends(require_service_token)],
+)
+async def fixed_income_verdict(facts: FixedIncomeVerdictRequest):
+    """
+    Escreve o veredito do comparador de renda fixa (TRA-269). O NestJS manda
+    o cenario e o ranking ja calculados e valida a resposta contra os mesmos
+    fatos antes de exibir — este endpoint so escreve prosa em cima do que
+    recebeu. Qualquer falha vira 500 e o server cai no texto deterministico.
+    """
+    try:
+        text = await FixedIncomeVerdictService.narrate(facts)
+        return {"text": text}
+    except Exception as e:
+        fastapi_logger.error(f"Erro ao narrar veredito de renda fixa: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
