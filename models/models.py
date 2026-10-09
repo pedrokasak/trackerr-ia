@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 # ============================================
@@ -169,6 +169,43 @@ class DigestNarrateResponse(BaseModel):
 
 
 # ============================================
+# Veredito do comparador de renda fixa (TRA-269)
+#
+# O server (NestJS) calcula o ranking e manda fatos fechados; a IA so
+# escreve a prosa. Nenhum dado pessoal viaja: so o cenario e taxas publicas.
+# Os limites abaixo barram payload absurdo antes de virar prompt de LLM.
+# ============================================
+class FixedIncomeScenarioInput(BaseModel):
+    principal: float = Field(gt=0, le=1_000_000_000)
+    years: float = Field(gt=0, le=30)
+    cdi_pct: float = Field(ge=-100, le=1000)
+    ipca_pct: float = Field(ge=-100, le=1000)
+    ir_rate_pct: float = Field(ge=0, le=100)
+
+
+class FixedIncomeRowInput(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    kind: str = Field(min_length=1, max_length=40)
+    exempt: bool
+    gross_annual_pct: float
+    net_annual_pct: float
+    real_annual_pct: float
+    net_final: float
+
+
+class FixedIncomeVerdictRequest(BaseModel):
+    scenario: FixedIncomeScenarioInput
+    ranking: List[FixedIncomeRowInput] = Field(min_length=2, max_length=12)
+    points: List[Annotated[str, Field(max_length=500)]] = Field(
+        default_factory=list, max_length=5
+    )
+
+
+class FixedIncomeVerdictResponse(BaseModel):
+    text: str
+
+
+# ============================================
 # Query RAG (TRA-37)
 #
 # user_id chega no corpo porque quem chama e o server (NestJS), ja
@@ -310,3 +347,207 @@ class InsightsRequest(BaseModel):
 
 class InsightsResponse(BaseModel):
     insights: List[Insight]
+
+
+# ============================================
+# Resumo de documento de RI (TRA-238)
+#
+# Documento publico (CVM/site de RI), nao dado de usuario: sem user_id. O
+# server manda o texto ja extraido do PDF e os sinais estruturados que ele
+# mesmo calculou por regra; este servico so escreve destaques e narrativa.
+# ============================================
+
+# Teto de defesa do corpo. O server ja corta bem antes disso
+# (RI_SYNTHESIS_MAX_CHARS); o limite aqui so impede que um chamador mal
+# configurado mande o PDF inteiro de um formulario de referencia.
+RI_SUMMARY_MAX_CONTENT_CHARS = 400_000
+
+
+class RiSummaryDocumentInput(BaseModel):
+    ticker: str = Field(min_length=1, max_length=20)
+    company: str = Field(default="", max_length=200)
+    document_type: str = Field(default="unknown", max_length=60)
+    title: Optional[str] = Field(default=None, max_length=300)
+    period: Optional[str] = Field(default=None, max_length=40)
+    published_at: Optional[str] = Field(default=None, max_length=40)
+
+
+class RiStructuredSignalInput(BaseModel):
+    detected: bool = False
+    direction: Literal["up", "down", "neutral", "unknown"] = "unknown"
+    evidence: List[str] = Field(default_factory=list)
+
+
+class RiSummaryRequest(BaseModel):
+    document: RiSummaryDocumentInput
+    content: str = Field(min_length=1, max_length=RI_SUMMARY_MAX_CONTENT_CHARS)
+    structured_signals: Dict[str, RiStructuredSignalInput] = Field(
+        default_factory=dict
+    )
+
+
+class RiSummaryCitation(BaseModel):
+    """
+    Trecho do documento que sustenta um destaque (TRA-239). `excerpt` e o
+    texto do PROPRIO documento, nao a copia do modelo; `page` vem dos
+    marcadores do PDF e e None quando o texto nao os tem.
+    """
+
+    highlight: str
+    excerpt: str
+    page: Optional[int] = None
+
+
+class RiSummaryResponse(BaseModel):
+    highlights: List[str]
+    narrative: str
+    provider: Optional[str] = None
+    # Aditivos (TRA-239): quem so le `highlights`/`narrative` nao muda nada.
+    citations: List[RiSummaryCitation] = Field(default_factory=list)
+    dropped_claims: int = 0
+
+
+# ============================================
+# Acervo de documentos de RI (TRA-264)
+# ============================================
+
+# Texto inteiro de um documento. O server guarda ate ~3 milhoes de caracteres
+# em cache; aqui entram 1,5 milhao — o indexador ainda corta em MAX_CHUNKS.
+RI_INDEX_MAX_CONTENT_CHARS = 1_500_000
+
+
+class RiIndexDocumentInput(BaseModel):
+    # Identidade do documento dada pelo server (protocolo da CVM ou link).
+    key: str = Field(min_length=1, max_length=128)
+    # Codigo do emissor (PETR para PETR3 e PETR4): o filtro de toda busca.
+    issuer: str = Field(min_length=1, max_length=16)
+    ticker: str = Field(min_length=1, max_length=20)
+    company: str = Field(default="", max_length=200)
+    title: str = Field(min_length=1, max_length=500)
+    category: Optional[str] = Field(default=None, max_length=120)
+    document_type: Optional[str] = Field(default=None, max_length=60)
+    period: Optional[str] = Field(default=None, max_length=40)
+    published_at: date
+    source_url: str = Field(min_length=1, max_length=2000)
+
+
+class RiIndexRequest(BaseModel):
+    document: RiIndexDocumentInput
+    # Texto como o pdf-parse extraiu, com os marcadores de pagina.
+    content: str = Field(min_length=1, max_length=RI_INDEX_MAX_CONTENT_CHARS)
+
+
+class RiIndexResponse(BaseModel):
+    status: Literal["indexed", "unchanged", "empty"]
+    chunks: int
+
+
+class RiAskRequest(BaseModel):
+    issuer: str = Field(min_length=1, max_length=16)
+    question: str = Field(min_length=1, max_length=500)
+    # Janela de datas opcional: "no ultimo ano".
+    published_after: Optional[date] = None
+
+
+class RiAskCitation(BaseModel):
+    document_key: str
+    title: str
+    category: Optional[str] = None
+    period: Optional[str] = None
+    published_at: date
+    source_url: str
+    # Pagina do PDF; None quando o texto nao tinha marcador de pagina.
+    page: Optional[int] = None
+    # Trecho do PROPRIO documento, nunca a copia do modelo.
+    excerpt: str
+
+
+class RiAskAnswerItem(BaseModel):
+    text: str
+    citation: RiAskCitation
+
+
+class RiAskResponse(BaseModel):
+    answer: List[RiAskAnswerItem]
+    # Nenhuma afirmacao sustentada pelos documentos: o chat diz que nao achou.
+    not_found: bool
+    provider: Optional[str] = None
+    dropped_claims: int = 0
+
+
+# --- Roteador do chat com tool-calling (TRA-241) ---------------------------
+# O server manda as intenções determinísticas como ferramentas; o modelo só
+# escolhe quais chamar. Tetos de tamanho: a lista vem do server, mas um
+# catálogo gigante seria prompt caro sem motivo.
+
+
+class ChatToolSpec(BaseModel):
+    name: str = Field(min_length=1, max_length=64, pattern=r"^[a-z][a-z0-9_]*$")
+    description: str = Field(min_length=1, max_length=600)
+    # JSON schema dos argumentos (objeto). Sem argumentos: objeto vazio.
+    parameters: Dict[str, Any] = Field(
+        default_factory=lambda: {"type": "object", "properties": {}}
+    )
+
+
+class ChatPlanRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=1000)
+    tools: List[ChatToolSpec] = Field(min_length=1, max_length=40)
+    max_calls: int = Field(default=3, ge=1, le=3)
+
+
+class ChatPlannedCall(BaseModel):
+    name: str
+    arguments: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ChatPlanResponse(BaseModel):
+    calls: List[ChatPlannedCall]
+    provider: Optional[str] = None
+    input_tokens: int = 0
+    output_tokens: int = 0
+    # 'no_tool' (nenhuma ferramenta serve) ou 'not_supported' (nenhum
+    # provider da cadeia tem tool calling). None quando há chamadas.
+    reason: Optional[str] = None
+
+
+# --- Avaliação offline das respostas de IA (TRA-242) ------------------------
+# O server manda amostras do chat SEM user_id; o RAG entra pela auditoria
+# deste serviço. A resposta é só agregado: nenhum texto volta.
+
+
+class EvalItemModel(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    route: Literal["regex", "tool_calling", "rag"]
+    intent: str = Field(min_length=1, max_length=64)
+    question: str = Field(min_length=1, max_length=2000)
+    answer: str = Field(min_length=1, max_length=6000)
+    context: Optional[str] = Field(default=None, max_length=12000)
+    level: Literal["beginner", "intermediate", "advanced"] = "intermediate"
+
+
+class EvalRunRequest(BaseModel):
+    items: List[EvalItemModel] = Field(default_factory=list, max_length=120)
+    window_days: int = Field(default=7, ge=1, le=31)
+    max_rag_samples: int = Field(default=30, ge=0, le=100)
+
+
+class EvalSummary(BaseModel):
+    count: int
+    judged: int
+    fidelity: Optional[float] = None
+    numeric_hallucination_rate: Optional[float] = None
+    recommendation_rate: Optional[float] = None
+    usefulness: Optional[float] = None
+    level_fit: Optional[float] = None
+    disclaimer_rate: Optional[float] = None
+
+
+class EvalRunResponse(BaseModel):
+    rubric_version: str
+    judge_provider: Optional[str] = None
+    prompt_fingerprint: str
+    totals: Dict[str, int]
+    by_route: Dict[str, EvalSummary]
+    by_intent: Dict[str, EvalSummary]
+    guard: Dict[str, Optional[float]]

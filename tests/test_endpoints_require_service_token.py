@@ -25,8 +25,58 @@ PROTECTED_ENDPOINTS = [
     ("/api/rag/knowledge/ingest", {"knowledge_base": "fiscal", "items": []}),
     ("/api/chat", {"question": "oi"}),
     (
+        "/api/ri/summarize",
+        {
+            "document": {"ticker": "PETR4", "company": "Petrobras", "document_type": "earnings_release"},
+            "content": "Receita cresceu.",
+        },
+    ),
+    (
         "/api/insights",
         {"user_profile": {"user_id": "u1", "portfolio": {"assets": []}}},
+    ),
+    # TRA-264: sem token, qualquer um com acesso de rede envenenaria o acervo
+    # de RI que o chat cita.
+    (
+        "/api/ri/index",
+        {
+            "document": {
+                "key": "k",
+                "issuer": "PETR",
+                "ticker": "PETR4",
+                "title": "Fato Relevante",
+                "published_at": "2026-09-28",
+                "source_url": "https://www.rad.cvm.gov.br/x",
+            },
+            "content": "texto",
+        },
+    ),
+    ("/api/ri/ask", {"issuer": "PETR", "question": "dividendos?"}),
+    # TRA-241: sem token, qualquer um com acesso de rede gastaria a conta de
+    # LLM do roteador.
+    (
+        "/api/chat/plan",
+        {
+            "question": "risco?",
+            "tools": [{"name": "portfolio_risk", "description": "Risco."}],
+        },
+    ),
+    # TRA-242: sem token, qualquer um gastaria a conta de LLM do juiz e leria
+    # as métricas de qualidade.
+    ("/api/evals/run", {"items": []}),
+    # TRA-269: sem token, qualquer um gastaria a conta de LLM do veredito.
+    (
+        "/api/fixed-income/verdict",
+        {
+            "scenario": {
+                "principal": 10000,
+                "years": 3,
+                "cdi_pct": 13.65,
+                "ipca_pct": 4.5,
+                "ir_rate_pct": 15,
+            },
+            "ranking": [],
+        },
     ),
 ]
 

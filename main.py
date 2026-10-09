@@ -8,6 +8,7 @@ import os
 import logging
 import uvicorn
 
+from fixed_income.verdict_service import FixedIncomeVerdictService
 from benchmark.benchmark import (
     AIAnalysisService,
     DigestNarrationService,
@@ -24,6 +25,8 @@ from models.models import (
     ChatResponse,
     PortfolioDigestFactsInput,
     DigestNarrateResponse,
+    FixedIncomeVerdictRequest,
+    FixedIncomeVerdictResponse,
     RagQueryRequest,
     RagQueryResponse,
     RagIngestRequest,
@@ -34,7 +37,23 @@ from models.models import (
     SharedKnowledgeIngestResponse,
     InsightsRequest,
     InsightsResponse,
+    RiSummaryRequest,
+    RiSummaryResponse,
+    RiIndexRequest,
+    RiIndexResponse,
+    RiAskRequest,
+    RiAskResponse,
+    ChatPlanRequest,
+    ChatPlanResponse,
+    EvalRunRequest,
+    EvalRunResponse,
 )
+from benchmark.providers.base import ToolSpec
+from chat.tool_planner import SingleStepToolRuntime
+from evals.fingerprint import prompt_fingerprint
+from evals.judge import LlmJudge, build_judge_provider
+from evals.rag_sampler import sample_rag_items
+from evals.service import EvalItem, EvalService
 from insights.service import InsightsService
 from insights.producers import PRODUCERS as LEGACY_INSIGHT_PRODUCERS
 from benchmark.providers.factory import LLMFactory
@@ -48,6 +67,13 @@ from rag.shared_knowledge_service import (
 )
 from rag.ingestion_service import RagIngestionService, RagIngestItem
 from rag.query_service import RagQueryService
+from ri.summary_service import RiSummaryRejectedError, RiSummaryService
+from ri.knowledge_service import (
+    RiAnswerRejectedError,
+    RiDocumentAnswerer,
+    RiDocumentIndexer,
+    RiDocumentMeta,
+)
 
 load_dotenv()
 
@@ -196,6 +222,281 @@ async def portfolio_digest_narrate(facts: PortfolioDigestFactsInput):
     except Exception as e:
         fastapi_logger.error(f"Erro ao narrar digest de carteira: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/api/fixed-income/verdict",
+    response_model=FixedIncomeVerdictResponse,
+    dependencies=[Depends(require_service_token)],
+)
+async def fixed_income_verdict(facts: FixedIncomeVerdictRequest):
+    """
+    Escreve o veredito do comparador de renda fixa (TRA-269). O NestJS manda
+    o cenario e o ranking ja calculados e valida a resposta contra os mesmos
+    fatos antes de exibir — este endpoint so escreve prosa em cima do que
+    recebeu. Qualquer falha vira 500 e o server cai no texto deterministico.
+    """
+    try:
+        text = await FixedIncomeVerdictService.narrate(facts)
+        return {"text": text}
+    except Exception as e:
+        fastapi_logger.error(f"Erro ao narrar veredito de renda fixa: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/api/ri/summarize",
+    response_model=RiSummaryResponse,
+    dependencies=[Depends(require_service_token)],
+)
+async def ri_summarize(request: RiSummaryRequest):
+    """
+    Resume um documento de RI (TRA-238). O server manda o texto ja extraido
+    e os sinais calculados por regra, e guarda o resultado em cache pela
+    hash do conteudo — cada documento e resumido uma vez, nao uma vez por
+    usuario.
+
+    Cada destaque volta com a citacao que o sustenta (TRA-239); o que o
+    documento nao sustenta e descartado e contado em `dropped_claims`.
+
+    422 quando a saida do modelo e inutilizavel ou barrada pelo guardrail:
+    o server trata qualquer nao-2xx como falha e cai no resumo estruturado.
+    """
+    try:
+        result = await RiSummaryService.summarize(request)
+        if result.dropped_reasons:
+            # So os motivos: o texto do resumo nao vai pro log.
+            fastapi_logger.warning(
+                f"Resumo de RI ({request.document.ticker}) descartou "
+                f"{len(result.dropped_reasons)} afirmacao(oes): "
+                f"{', '.join(sorted(set(result.dropped_reasons)))}"
+            )
+        return {
+            "highlights": result.highlights,
+            "narrative": result.narrative,
+            "provider": result.provider,
+            "citations": [
+                {"highlight": item.text, "excerpt": item.excerpt, "page": item.page}
+                for item in result.citations
+            ],
+            "dropped_claims": len(result.dropped_reasons),
+        }
+    except RiSummaryRejectedError as e:
+        fastapi_logger.warning(
+            f"Resumo de RI rejeitado ({request.document.ticker}): {e.reason}"
+        )
+        raise HTTPException(status_code=422, detail=e.reason)
+    except Exception as e:
+        fastapi_logger.error(f"Erro ao resumir documento de RI: {e}")
+        raise HTTPException(status_code=500, detail="ri_summary_failed")
+
+
+@app.post(
+    "/api/ri/index",
+    response_model=RiIndexResponse,
+    dependencies=[Depends(require_service_token)],
+)
+async def ri_index(
+    request: RiIndexRequest, session: AsyncSession = Depends(get_rag_session)
+):
+    """
+    Guarda o texto de um documento de RI no acervo (TRA-264), em chunks por
+    pagina. O server manda o texto que ja extraiu; mesmo documento com o
+    mesmo texto nao paga embedding de novo.
+    """
+    try:
+        document = request.document
+        indexer = RiDocumentIndexer(
+            session=session, embedding_provider=GeminiEmbeddingProvider()
+        )
+        result = await indexer.index(
+            RiDocumentMeta(
+                key=document.key,
+                issuer=document.issuer,
+                ticker=document.ticker,
+                company=document.company,
+                title=document.title,
+                category=document.category,
+                document_type=document.document_type,
+                period=document.period,
+                published_at=document.published_at,
+                source_url=document.source_url,
+            ),
+            request.content,
+        )
+        return {"status": result.status, "chunks": result.chunks}
+    except Exception as e:
+        fastapi_logger.error(f"Erro ao indexar documento de RI: {e}")
+        raise HTTPException(status_code=500, detail="ri_index_failed")
+
+
+@app.post(
+    "/api/ri/ask",
+    response_model=RiAskResponse,
+    dependencies=[Depends(require_service_token)],
+)
+async def ri_ask(
+    request: RiAskRequest, session: AsyncSession = Depends(get_rag_session)
+):
+    """
+    Responde uma pergunta sobre os documentos de RI de UM emissor (TRA-264).
+    Cada afirmacao volta com documento, pagina e o trecho real que a
+    sustenta; sem trecho que sustente, `not_found`.
+
+    422 quando a saida do modelo e barrada pelo guardrail (recomendacao,
+    preco-alvo): o server responde que nao conseguiu, sem texto do modelo.
+    """
+    try:
+        answerer = RiDocumentAnswerer(
+            session=session,
+            embedding_provider=GeminiEmbeddingProvider(),
+            llm_provider=LLMFactory.get_provider(),
+        )
+        result = await answerer.ask(
+            request.issuer, request.question, request.published_after
+        )
+        if result.dropped_reasons:
+            # So os motivos: o texto das afirmacoes nao vai pro log.
+            fastapi_logger.warning(
+                f"Resposta do acervo de RI ({request.issuer}) descartou "
+                f"{len(result.dropped_reasons)} afirmacao(oes): "
+                f"{', '.join(sorted(set(result.dropped_reasons)))}"
+            )
+        return {
+            "answer": [
+                {
+                    "text": item.text,
+                    "citation": {
+                        "document_key": item.chunk.document_key,
+                        "title": item.chunk.title,
+                        "category": item.chunk.category,
+                        "period": item.chunk.period,
+                        "published_at": item.chunk.published_at,
+                        "source_url": item.chunk.source_url,
+                        "page": item.page,
+                        "excerpt": item.excerpt,
+                    },
+                }
+                for item in result.items
+            ],
+            "not_found": result.not_found,
+            "provider": result.provider,
+            "dropped_claims": len(result.dropped_reasons),
+        }
+    except RiAnswerRejectedError as e:
+        fastapi_logger.warning(f"Resposta do acervo de RI rejeitada ({request.issuer}): {e.reason}")
+        raise HTTPException(status_code=422, detail=e.reason)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        fastapi_logger.error(f"Erro ao responder pelo acervo de RI: {e}")
+        raise HTTPException(status_code=500, detail="ri_ask_failed")
+
+
+@app.post(
+    "/api/chat/plan",
+    response_model=ChatPlanResponse,
+    dependencies=[Depends(require_service_token)],
+)
+async def chat_plan(request: ChatPlanRequest):
+    """
+    Roteador do chat com tool-calling (TRA-241). Escolhe quais intenções
+    determinísticas do server respondem à pergunta: de 1 a 3 chamadas, com
+    os tickers. Não executa nada nem responde à pergunta; o server executa e
+    monta a resposta, sem número vindo do modelo.
+
+    Sem provider com tool calling na cadeia: 200 com `reason: not_supported`,
+    e o server responde pela rota de antes.
+    """
+    try:
+        runtime = SingleStepToolRuntime(LLMFactory.get_provider())
+        plan = await runtime.plan(
+            request.question,
+            [
+                ToolSpec(
+                    name=tool.name,
+                    description=tool.description,
+                    parameters=tool.parameters,
+                )
+                for tool in request.tools
+            ],
+            request.max_calls,
+        )
+        # Só nomes e contagens no log: a pergunta é do usuário.
+        fastapi_logger.info(
+            f"Roteador do chat: {len(plan.calls)} chamada(s) "
+            f"[{', '.join(call.name for call in plan.calls)}] "
+            f"via {plan.provider or '-'} ({plan.reason or 'ok'})"
+        )
+        return {
+            "calls": [
+                {"name": call.name, "arguments": call.arguments}
+                for call in plan.calls
+            ],
+            "provider": plan.provider,
+            "input_tokens": plan.input_tokens,
+            "output_tokens": plan.output_tokens,
+            "reason": plan.reason,
+        }
+    except Exception as e:
+        fastapi_logger.error(f"Erro no roteador do chat: {type(e).__name__}")
+        raise HTTPException(status_code=502, detail="chat_plan_failed")
+
+
+@app.post(
+    "/api/evals/run",
+    response_model=EvalRunResponse,
+    dependencies=[Depends(require_service_token)],
+)
+async def evals_run(
+    request: EvalRunRequest, session: AsyncSession = Depends(get_rag_session)
+):
+    """
+    Avaliação offline das respostas de IA (TRA-242), chamada pelo job
+    semanal do server.
+
+    Junta as amostras do chat (regex e roteador com tools, mandadas pelo
+    server, sem `user_id`) com as do RAG (auditoria daqui). Depois tira a
+    PII, roda as checagens determinísticas e o juiz, um provider diferente do
+    gerador. A resposta é só agregado por rota e por intenção, sem nenhum
+    texto. Sem juiz configurado, as notas do juiz ficam vazias e as checagens
+    determinísticas seguem.
+    """
+    try:
+        rag_items, stats = await sample_rag_items(
+            session, request.window_days, request.max_rag_samples
+        )
+        judge_provider = build_judge_provider()
+        service = EvalService(LlmJudge(judge_provider) if judge_provider else None)
+        items = [
+            EvalItem(
+                id=item.id,
+                route=item.route,
+                intent=item.intent,
+                question=item.question,
+                answer=item.answer,
+                context=item.context,
+                level=item.level,
+            )
+            for item in request.items
+        ] + rag_items
+        report = await service.evaluate(items, stats)
+        fastapi_logger.info(
+            f"Avaliação offline: {report.totals['evaluated']} avaliada(s), "
+            f"{report.totals['judged']} com nota, {report.totals['pii_blocked']} barrada(s) por PII"
+        )
+        return {
+            "rubric_version": report.rubric_version,
+            "judge_provider": report.judge_provider,
+            "prompt_fingerprint": prompt_fingerprint(),
+            "totals": report.totals,
+            "by_route": report.by_route,
+            "by_intent": report.by_intent,
+            "guard": report.guard,
+        }
+    except Exception as e:
+        fastapi_logger.error(f"Erro na avaliação offline: {type(e).__name__}")
+        raise HTTPException(status_code=500, detail="eval_run_failed")
 
 
 @app.post(
