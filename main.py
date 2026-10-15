@@ -195,6 +195,7 @@ async def chat_portfolio(request: ChatRequest):
             question=request.question,
             profile_plan=request.profile_plan or "free",
             context=request.context or {},
+            level=request.level,
         )
         answer = result.get("answer")
         if not answer:
@@ -681,6 +682,7 @@ async def generate_insights(request: InsightsRequest):
         insights = await service.generate(
             request.user_profile,
             data_freshness_days=request.data_freshness_days,
+            level=request.level,
         )
         return {"insights": insights}
     except Exception as e:

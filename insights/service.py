@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
 from benchmark.providers.base import LLMProvider
+from style.didactic import didactic_rules
+from style.didactic import didactic_rules
 from models.models import (
     Insight,
     InsightAction,
@@ -359,7 +361,9 @@ def parse_llm_insight_response(
     return result
 
 
-def build_insights_prompt(candidates: List[InsightCandidate]) -> str:
+def build_insights_prompt(
+    candidates: List[InsightCandidate], level: Optional[str] = None
+) -> str:
     """
     Prompt curto e restrito. O LLM recebe a evidencia ja fechada e so
     escreve prosa. `title` e `action.label` deterministicos ficam
@@ -397,6 +401,8 @@ REGRAS OBRIGATORIAS:
   e diga qual acao geral resolve.
 - `rationale`: 2 ou 3 frases.
 - `action_label`: uma frase curta comecando por verbo.
+
+{didactic_rules(level)}
 
 ENTRADA:
 {items_json}
@@ -438,6 +444,7 @@ class InsightsService:
         data_freshness_days: Optional[int] = None,
         sources: Optional[List[InsightSource]] = None,
         producer: Optional[Callable[[UserProfile], List[InsightCandidate]]] = None,
+        level: Optional[str] = None,
     ) -> List[Insight]:
         # TRA-135: `producer` permite migrar producers legados de
         # /api/hybrid-analysis (opportunity_radar, error_detection,
@@ -450,7 +457,7 @@ class InsightsService:
             return []
 
         sources = sources or []
-        narrated = await self._narrate(candidates)
+        narrated = await self._narrate(candidates, level)
 
         insights: List[Insight] = []
         for c in candidates:
@@ -491,9 +498,9 @@ class InsightsService:
         return insights
 
     async def _narrate(
-        self, candidates: List[InsightCandidate]
+        self, candidates: List[InsightCandidate], level: Optional[str] = None
     ) -> Dict[str, _NarratedInsight]:
-        prompt = build_insights_prompt(candidates)
+        prompt = build_insights_prompt(candidates, level)
         if not prompt:
             return {}
         try:

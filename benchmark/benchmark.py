@@ -3,6 +3,8 @@ from typing import Dict, Any, Optional
 
 from models.models import UserProfile, SimulationRequest, PortfolioDigestFactsInput
 from .providers.factory import LLMFactory
+from style.didactic import didactic_rules
+from style.didactic import didactic_rules
 
 class StockStrategy:
     """Estratégia para Ações"""
@@ -196,6 +198,7 @@ class AIAnalysisService:
         question: str,
         profile_plan: str = "free",
         context: Optional[Dict[str, Any]] = None,
+        level: Optional[str] = None,
     ) -> str:
         safe_context = context or {}
         portfolio_summary = safe_context.get("portfolioSummary", {})
@@ -217,6 +220,10 @@ IMPORTANTE:
 - Não invente dados fora do contexto.
 - Se faltar dado para precisão, diga isso explicitamente.
 - Quando envolver imposto/simulação, trate como estimativa.
+- Não recomende comprar ou vender ativos.
+
+{didactic_rules(level)}
+
 - Retorne APENAS JSON no formato:
 {{
   "answer": "texto da resposta"
@@ -228,11 +235,13 @@ IMPORTANTE:
         question: str,
         profile_plan: str = "free",
         context: Optional[Dict[str, Any]] = None,
+        level: Optional[str] = None,
     ) -> Dict[str, Any]:
         prompt = AIAnalysisService.prepare_chat_prompt(
             question=question,
             profile_plan=profile_plan,
             context=context,
+            level=level,
         )
         provider = LLMFactory.get_provider()
         return await provider.analyze(prompt)
