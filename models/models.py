@@ -127,6 +127,8 @@ class ChatRequest(BaseModel):
     question: str
     profile_plan: Optional[str] = "free"
     context: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    # Nível da explicação (iniciante/intermediario/avancado ou o do perfil).
+    level: Optional[str] = Field(default=None, max_length=20)
 
 
 class ChatResponse(BaseModel):
@@ -199,6 +201,7 @@ class FixedIncomeVerdictRequest(BaseModel):
     points: List[Annotated[str, Field(max_length=500)]] = Field(
         default_factory=list, max_length=5
     )
+    level: Optional[str] = Field(default=None, max_length=20)
 
 
 class FixedIncomeVerdictResponse(BaseModel):
@@ -343,6 +346,7 @@ class Insight(BaseModel):
 class InsightsRequest(BaseModel):
     user_profile: UserProfile
     data_freshness_days: Optional[int] = None
+    level: Optional[str] = Field(default=None, max_length=20)
 
 
 class InsightsResponse(BaseModel):
