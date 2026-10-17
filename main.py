@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,6 +50,7 @@ from models.models import (
     EvalRunResponse,
 )
 from benchmark.providers.base import ToolSpec
+from telemetry.setup import setup_telemetry, shutdown_telemetry
 from chat.tool_planner import SingleStepToolRuntime
 from evals.fingerprint import prompt_fingerprint
 from evals.judge import LlmJudge, build_judge_provider
@@ -80,7 +82,16 @@ load_dotenv()
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-app = FastAPI(title="Hybrid Portfolio AI", version="2.5.0")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    yield
+    # Esvazia o buffer de spans antes de o Coolify encerrar o container.
+    shutdown_telemetry()
+
+
+app = FastAPI(title="Hybrid Portfolio AI", version="2.5.0", lifespan=lifespan)
+# OpenTelemetry (TRA-222): só liga com OTEL_EXPORTER_OTLP_ENDPOINT.
+setup_telemetry(app)
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
