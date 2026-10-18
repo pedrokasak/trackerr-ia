@@ -388,6 +388,10 @@ class RiSummaryRequest(BaseModel):
     structured_signals: Dict[str, RiStructuredSignalInput] = Field(
         default_factory=dict
     )
+    # Nivel do investidor (TRA-256): `beginner`/`iniciante`, `intermediate`/
+    # `intermediario`, `experienced`/`avancado`. Ausente ou desconhecido vale
+    # como intermediario, que e o resumo de antes.
+    level: Optional[str] = Field(default=None, max_length=20)
 
 
 class RiSummaryCitation(BaseModel):
