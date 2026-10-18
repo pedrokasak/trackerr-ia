@@ -23,6 +23,10 @@ FRESHNESS_THRESHOLD_DAYS: dict[str, int] = {
     "portfolio_performance": 3,
     "portfolio_dividend": 7,
     "portfolio_risk": 7,
+    # ADR-002 (TRA-16): resumo de operacoes e passado e so muda quando entra
+    # nota nova; renda fixa e marcada na curva uma vez por dia.
+    "portfolio_trade_summary": 7,
+    "portfolio_fixed_income": 3,
 }
 DEFAULT_THRESHOLD_DAYS = 3
 
