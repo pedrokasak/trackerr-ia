@@ -65,3 +65,23 @@ def test_unknown_as_of_does_not_block_but_reports_none():
     assert a.max_age_days is None
     assert a.is_stale is False
     assert a.note == ""
+
+
+def test_new_fact_types_have_their_own_limits():
+    # ADR-002: antes de ter limite proprio caiam no padrao de 3 dias.
+    assert FRESHNESS_THRESHOLD_DAYS["portfolio_trade_summary"] == 7
+    assert FRESHNESS_THRESHOLD_DAYS["portfolio_fixed_income"] == 3
+
+
+def test_trade_summary_of_six_days_is_still_fresh():
+    chunks = [FakeChunk("portfolio_trade_summary", date(2026, 8, 15))]
+    a = assess_freshness(chunks, TODAY)
+    assert a.is_stale is False
+    assert a.max_age_days == 6
+
+
+def test_fixed_income_of_five_days_is_stale():
+    chunks = [FakeChunk("portfolio_fixed_income", date(2026, 8, 16))]
+    a = assess_freshness(chunks, TODAY)
+    assert a.is_stale is True
+    assert "5 dias" in a.note
