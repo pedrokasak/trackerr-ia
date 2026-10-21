@@ -47,6 +47,18 @@ class ToolCallingNotSupported(Exception):
 class LLMProvider(ABC):
     """Contrato base para todos os providers de LLM."""
 
+    # Provider que só delega para outros (fallback) não gera span próprio:
+    # o span sai de quem de fato chamou o modelo.
+    _trace_calls = True
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls.__dict__.get("_trace_calls", True):
+            # Import tardio: telemetry não depende deste módulo.
+            from telemetry.llm import trace_llm_methods
+
+            trace_llm_methods(cls)
+
     @abstractmethod
     async def analyze(self, prompt: str) -> Dict[str, Any]:
         """
