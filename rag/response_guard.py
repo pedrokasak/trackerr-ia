@@ -26,8 +26,9 @@ RECOMMENDATION_PATTERN = re.compile(
 REFUSAL_PATTERN = re.compile(
     r"n[aã]o\s+(?:posso|consigo|devo|vou|fa[cç]o|[eé]\s+poss[ií]vel)\s+"
     r"(?:fazer\s+|dar\s+|oferecer\s+)?"
-    r"(?:recomenda[cç](?:[aã]o|[oõ]es)|indica[cç](?:[aã]o|[oõ]es)|sugest(?:[aã]o|[oõ]es))"
-    r"([^.!?\n;]*)",
+    r"(?:recomenda[cç](?:[aã]o|[oõ]es)|indica[cç](?:[aã]o|[oõ]es)|sugest(?:[aã]o|[oõ]es)"
+    r"|recomendar|indicar|sugerir)"
+    r"([^.!?\n;—–]*)",
     re.IGNORECASE,
 )
 
@@ -37,7 +38,7 @@ REFUSAL_PATTERN = re.compile(
 _REFUSAL_VOCABULARY = frozenset(
     """
     de da do das dos e ou a o as os um uma em no na nos nas para sobre com
-    qualquer quaisquer relacao relação seu sua seus suas voce você
+    qualquer quaisquer nenhum nenhuma relacao relação seu sua seus suas voce você
     compra compras venda vendas comprar vender manter manutencao manutenção
     acao ação acoes ações operacao operação operacoes operações
     ativo ativos papel papeis papéis titulo título titulos títulos
