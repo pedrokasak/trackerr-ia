@@ -76,6 +76,32 @@ def test_recusa_com_recomendacao_na_mesma_frase_continua_barrada():
         assert result.reason == "recommendation_language"
 
 
+# Os modelos recusam com o VERBO ("não posso recomendar compra ou venda"),
+# não só com o substantivo. Na regravação do dataset dourado, todas as
+# respostas ao caso "devo vender minhas PETR4?" caíam no fallback.
+def test_aceita_a_recusa_com_o_verbo_recomendar():
+    for text in (
+        "Não posso recomendar compra ou venda de nenhum ativo — essa decisão "
+        "depende dos seus objetivos. Você possui 200 ações de PETR4.",
+        "Não consigo indicar compra ou venda. PETR4 é 23,1% da carteira.",
+        "Não devo sugerir operações sobre seus ativos. Você tem 6 ativos.",
+    ):
+        assert validate_rag_response(text).valid is True, text
+
+
+def test_recusa_com_o_verbo_seguida_de_ordem_continua_barrada():
+    for text in (
+        "Não posso recomendar, mas venda PETR4.",
+        "Não posso recomendar PETR4 — compre agora.",
+        "Não posso recomendar nada — venda tudo.",
+        "Não posso recomendar compra, compre VALE3 mesmo assim.",
+        "Não posso recomendar que você venda PETR4, mas eu venderia.",
+    ):
+        result = validate_rag_response(text)
+        assert result.valid is False, text
+        assert result.reason == "recommendation_language"
+
+
 def test_aceita_recusas_comuns_do_modelo():
     for text in (
         "Não posso fazer recomendações de investimento. Sua carteira tem 6 ativos.",
