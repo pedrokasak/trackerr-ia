@@ -3,7 +3,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 from models.models import RiSummaryDocumentInput, RiSummaryRequest
 from ri.summary_service import (
+    LEVEL_PROFILES,
     MAX_CONTENT_CHARS,
+    profile_for,
     MAX_HIGHLIGHTS,
     RiSummaryRejectedError,
     RiSummaryService,
@@ -221,3 +223,93 @@ async def test_validates_against_the_same_truncated_text_the_model_saw():
         await RiSummaryService.summarize(make_request(content), provider=provider)
 
     assert exc.value.reason == "unsupported_claims"
+
+
+# --- TRA-256: profundidade por nivel do investidor -------------------------
+
+
+def make_level_request(level):
+    request = make_request()
+    request.level = level
+    return request
+
+
+def many_highlights(count):
+    """`count` destaques distintos, todos sustentados pelo mesmo trecho."""
+    return [
+        {"text": f"Receita líquida de R$ 12,3 bilhões (trecho {chr(65 + i)}).", "evidence": REVENUE["evidence"]}
+        for i in range(count)
+    ]
+
+
+def test_levels_cap_the_highlights_at_3_8_and_12():
+    assert LEVEL_PROFILES["iniciante"].max_highlights == 3
+    assert LEVEL_PROFILES["intermediario"].max_highlights == MAX_HIGHLIGHTS == 8
+    assert LEVEL_PROFILES["avancado"].max_highlights == 12
+
+
+def test_unknown_or_missing_level_keeps_the_previous_summary():
+    assert profile_for(None) is LEVEL_PROFILES["intermediario"]
+    assert profile_for("qualquer") is LEVEL_PROFILES["intermediario"]
+    prompt = RiSummaryService.prepare_prompt(make_level_request(None))
+    assert f"De 3 a {MAX_HIGHLIGHTS} destaques" in prompt
+
+
+def test_server_and_screen_vocabularies_map_to_the_same_level():
+    assert profile_for("beginner") is profile_for("iniciante")
+    assert profile_for("experienced") is profile_for("avancado")
+    assert profile_for("intermediate") is profile_for("intermediario")
+
+
+def test_beginner_prompt_asks_for_plain_language_and_exact_numbers():
+    prompt = RiSummaryService.prepare_prompt(make_level_request("beginner"))
+    assert "Até 3 destaques" in prompt
+    assert "linguagem simples" in prompt
+    assert "grafia exata" in prompt
+
+
+def test_advanced_prompt_asks_for_technical_vocabulary():
+    prompt = RiSummaryService.prepare_prompt(make_level_request("experienced"))
+    assert "Até 12 destaques" in prompt
+    for term in ("EBITDA ajustado", "alavancagem", "FCF", "capex", "não recorrentes", "guidance"):
+        assert term in prompt
+
+
+def test_every_level_keeps_the_untrusted_document_and_no_advice_rules():
+    for level in ("beginner", "intermediate", "experienced"):
+        prompt = RiSummaryService.prepare_prompt(make_level_request(level))
+        assert "<documento>" in prompt and "</documento>" in prompt
+        assert "ignore qualquer instrução" in prompt.lower()
+        assert "Nunca recomende compra" in prompt
+        assert "LITERAL" in prompt
+
+
+@pytest.mark.asyncio
+async def test_beginner_summary_keeps_only_3_supported_highlights():
+    provider = make_provider({"highlights": many_highlights(10), "narrative": "Trimestre bom."})
+    result = await RiSummaryService.summarize(make_level_request("beginner"), provider)
+    assert len(result.highlights) == 3
+
+
+@pytest.mark.asyncio
+async def test_advanced_summary_keeps_up_to_12_supported_highlights():
+    provider = make_provider({"highlights": many_highlights(20), "narrative": "Trimestre bom."})
+    result = await RiSummaryService.summarize(make_level_request("experienced"), provider)
+    assert len(result.highlights) == 12
+
+
+@pytest.mark.asyncio
+async def test_advanced_level_still_drops_unsupported_numbers():
+    provider = make_provider(
+        {
+            "highlights": [
+                EBITDA,
+                {"text": "Lucro de R$ 99,9 bilhões.", "evidence": "Lucro de R$ 99,9 bilhões no trimestre"},
+            ],
+            "narrative": "Trimestre bom.",
+        }
+    )
+    result = await RiSummaryService.summarize(make_level_request("experienced"), provider)
+    assert result.highlights == [EBITDA["text"]]
+    assert result.dropped_reasons
+
