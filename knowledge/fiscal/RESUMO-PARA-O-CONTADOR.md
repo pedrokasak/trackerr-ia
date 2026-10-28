@@ -5,9 +5,16 @@
 > fiscal do projeto. Se preferir, pode editar direto neste arquivo, ou marcar
 > em vermelho o que precisar de correção e devolver.
 
-## O que é o Trakker
+> **Versão 0.2, atualizada em 28/10/2026 para o exercício 2027 (ano-calendário
+> 2026).** A primeira versão (agosto) foi escrita sem acesso às fontes. Nesta,
+> o que já foi lido na lei ou na Receita está dito como **"lido na fonte"**; o
+> que é de norma conhecida mas **ainda não foi relido** e o que veio **só de
+> imprensa ou corretora** também está identificado. Os itens que mais
+> precisam do seu olhar estão marcados como **PRIORIDADE**.
 
-O Trakker é um aplicativo que ajuda a pessoa a acompanhar os investimentos
+## O que é o Trackerr
+
+O Trackerr é um aplicativo que ajuda a pessoa a acompanhar os investimentos
 dela (ações, fundos imobiliários, renda fixa, etc.) num só lugar. Queremos
 que ele também explique, de forma simples, **como funciona o imposto de
 renda** de cada tipo de investimento — não para calcular o imposto de
@@ -51,40 +58,62 @@ isenção **não vale para day trade**.
 **Day trade** (compra e venda da mesma ação no mesmo dia):
 Tributado em **20%**, sem direito a nenhuma isenção.
 
+*Lido na fonte (Lei 11.033/2004, planalto.gov.br):* as alíquotas de 15% e
+20% e a isenção de R$ 20.000 ("para o conjunto de ações"). A MP 1.303/2025, que
+previa alíquota única de 17,5% ou 18%, **perdeu a validade em 08/10/2025**;
+17,5% e 18% **não** são regra vigente.
+
 **Imposto retido na hora da venda ("dedo-duro"):**
 A corretora já desconta uma parte pequena na hora da venda, só pra avisar a
 Receita que a operação aconteceu — **0,005%** do valor vendido em operação
-comum, **1%** do lucro em day trade. Esse valor descontado entra como
-abatimento no imposto que a pessoa vai pagar depois.
+comum (*lido na fonte*), **1%** do lucro em day trade (*só fonte secundária*;
+a lei remete a outro texto). Esse valor descontado entra como abatimento no
+imposto que a pessoa vai pagar depois.
 
 **Como e quando pagar:**
 O imposto é apurado **mês a mês** e pago pela própria pessoa através de uma
-guia (DARF), até o último dia útil do mês seguinte.
+guia (DARF, código 6015), até o último dia útil do mês seguinte. DARF abaixo de
+R$ 10,00 não é emitido na hora: soma ao mês seguinte. *(Código, prazo e mínimo
+são de norma conhecida, ainda não relidos na fonte.)*
 
-**Dividendos:**
-Hoje são **isentos** de imposto de renda para quem recebe. (Atenção: esse é
-um dos pontos mais discutidos por propostas de reforma tributária — se isso
-mudou, é importante avisar.)
+**Dividendos — PRIORIDADE (a regra mudou em 2026):**
+Os dividendos continuam, em regra, isentos. Mas, **desde janeiro de 2026**
+(Lei 15.270/2025, que incluiu o art. 6º-A na Lei 9.250/1995), quando uma
+mesma empresa paga a uma mesma pessoa física **mais de R$ 50.000 no mês**,
+há retenção de **10% sobre o total pago** (não só sobre o que passa de
+R$ 50.000). Vários pagamentos da mesma empresa no mês se somam. Ficam fora
+os lucros apurados até 2025 com distribuição aprovada até 31/12/2025.
+*(Lido na fonte.)* Além disso, os dividendos entram na base do imposto mínimo
+de altas rendas (seção 7).
 
 **Juros sobre capital próprio (JCP):**
 Diferente do dividendo, o JCP **é tributado**, em **15%**, já descontado na
-hora do pagamento.
+hora do pagamento, em tributação **exclusiva**. Na declaração vai em
+"Rendimentos Sujeitos à Tributação Exclusiva/Definitiva", e não em
+"Rendimentos Isentos". O valor que a corretora credita costuma ser o
+**líquido**; o bruto e o imposto retido estão no informe de rendimentos.
+*(15% é de norma conhecida, ainda não relido na fonte.)*
 
 ---
 
 ## 2. Fundos Imobiliários (FIIs)
 
-**Rendimento mensal que o fundo distribui:**
-Pode ser **isento** de imposto, mas só se três condições forem cumpridas ao
-mesmo tempo: o fundo ser negociado em bolsa, ter no mínimo 50 cotistas, e a
-pessoa ter menos de 10% das cotas do fundo. Se alguma dessas condições não
-for cumprida, o rendimento deixa de ser isento.
+**Rendimento mensal que o fundo distribui — PRIORIDADE:**
+Pode ser **isento** de imposto, mas só se as condições forem cumpridas ao
+mesmo tempo: as cotas serem negociadas em bolsa ou balcão organizado (*lido na
+fonte*, Lei 11.033, art. 3º, III), a pessoa ter menos de 10% das cotas do
+fundo e o fundo ter um mínimo de cotistas. **Aqui precisamos de você:** a
+versão de agosto dizia 50 cotistas, mas a Lei 15.270/2025, ao definir o
+imposto mínimo, repete a isenção com exigência de **ao menos 100 cotistas**.
+Não afirmamos nenhum dos dois números até você confirmar qual vale para 2026.
 
 **Venda das cotas com lucro:**
 Diferente do rendimento mensal, **vender a cota com lucro é sempre
-tributado**, em **20%**. Não existe a isenção de R$ 20.000/mês que existe
-para ações — isso é uma diferença que costuma confundir os usuários, então é
-importante que o texto deixe isso bem claro.
+tributado**, em **20%** (*lido na fonte*: Lei 8.668/1993, art. 18; Fiagro,
+art. 20-D). Não existe a isenção de R$ 20.000/mês que existe para ações — isso
+é uma diferença que costuma confundir os usuários, então é importante que o
+texto deixe isso bem claro. A versão de agosto citava a Lei 11.033 como fonte
+dessa alíquota; a fonte correta é a Lei 8.668.
 
 **Prejuízo:**
 Se a pessoa perde dinheiro vendendo cotas de um FII, esse prejuízo só pode
@@ -103,10 +132,22 @@ Lucro na venda é tributado em **15%**, mas **sem** a isenção de R$ 20.000
 que existe para ações individuais — outro ponto que costuma gerar confusão
 e vale reforçar no texto.
 
+Que o ETF caia na regra geral de bolsa (15%) é entendimento da Receita, de
+norma conhecida e **ainda não relido na fonte**. O prejuízo de ETF compensa
+ganho de operações comuns, o mesmo saldo das ações à vista (a confirmar).
+
 **ETF de renda fixa:**
 Tem uma lógica diferente: a alíquota varia de acordo com o prazo médio dos
 títulos que o fundo carrega, não segue a mesma tabela usada em ações.
 Precisamos que você confirme como funciona essa variação hoje.
+
+**Ticker terminado em "11" — ETF, FII ou unit?**
+O final "11" não diz sozinho o que o ativo é. BOVA11 e IVVB11 são ETFs; SANB11
+é uma **unit** (um pacote de ações negociado junto); outros são FIIs. O
+aplicativo trata a unit como ação (com a isenção de R$ 20.000), o ETF como
+ETF (15%, sem a isenção) e o FII como FII (20%). Classificar errado muda o
+imposto estimado. **Precisamos que você confirme o tratamento da unit** para a
+isenção e para a compensação de prejuízo.
 
 ---
 
@@ -161,13 +202,58 @@ que vai diminuindo conforme os dias passam, até zerar no 30º dia.
   prejuízo de day trade só abate lucro de day trade).
 - **É mês a mês**: todo mês em que há lucro, calcula-se o imposto daquele
   mês. Se não vendeu nada, não há imposto naquele mês.
-- **A guia de pagamento (DARF)** tem um valor mínimo — abaixo disso, o valor
-  fica acumulado até o mês em que atingir o mínimo.
+- **A guia de pagamento (DARF)** tem um valor mínimo (R$ 10,00) — abaixo
+  disso, o valor fica acumulado até o mês em que atingir o mínimo.
 - **Atraso no pagamento** gera multa e juros sobre o valor do imposto.
 - **Declaração anual**: independente do que foi pago mês a mês, todo ano a
-  pessoa precisa declarar a posição de bens (o que tem em 31 de dezembro) e
-  os rendimentos recebidos (incluindo os isentos, como dividendos) na
-  declaração de ajuste anual.
+  pessoa precisa declarar a posição de bens (o que tem em 31 de dezembro, pelo
+  custo) e os rendimentos recebidos: os isentos em "Rendimentos Isentos" e os
+  de tributação exclusiva, como o JCP, na ficha própria. O prazo e a
+  obrigatoriedade do exercício 2027 ainda não foram publicados, por isso o
+  texto não afirma datas.
+
+---
+
+## 7. Imposto mínimo de altas rendas (novo, exercício 2027) — PRIORIDADE
+
+A Lei 15.270/2025 criou, a partir do exercício 2027, um **imposto mínimo**
+para quem recebeu **mais de R$ 600.000 no ano**, somando todos os
+rendimentos, inclusive os de tributação exclusiva, os isentos e os
+dividendos. A alíquota é de 10% a partir de R$ 1.200.000; entre R$ 600.000 e
+R$ 1.200.000 cresce linearmente: alíquota em % = (rendimentos ÷ 60.000) − 10.
+O imposto já pago é deduzido. **Ganhos de bolsa entram na base** (o texto
+deduz os ganhos de capital, exceto os de operações em bolsa tributadas pelo
+ganho líquido). *(Lido na fonte: Lei 9.250/1995, art. 16-A.)* O aplicativo
+**não calcula** esse imposto; apenas avisa que quem tem renda desse porte
+precisa de cálculo completo. Precisamos que você confirme a leitura da base.
+
+## 8. Códigos de Bens e Direitos — PRIORIDADE
+
+Na ficha "Bens e Direitos", o aplicativo orienta: **ações no Grupo 03, Código
+01** e **FII no Grupo 07, Código 03**. Para ETF e criptoativos **não indicamos
+código**, porque as fontes se contradizem (o ETF apareceu como 07-06, 74 e 49).
+Esses códigos vieram só de **matérias sobre a reorganização da tabela em
+2022**, porque a Receita bloqueia o download do PDF da tabela; o aplicativo
+manda o usuário conferir na lista do programa. A versão de agosto usava um
+código antigo para ações ("31"). **Precisamos que você confirme os códigos na
+tabela do exercício 2027 e diga o de ETF e o de criptoativos.**
+
+## 9. Criptoativos (novo)
+
+Ganho tributado a **15%**; vendas de até **R$ 35.000 no mês** podem ficar
+isentas (Lei 9.250/1995, art. 22, II, *lido na fonte*; que valha para cripto
+é entendimento da Receita, *fonte secundária*). A Receita não prevê
+compensação de prejuízo. DARF com código próprio (4600, a confirmar). Confirme
+a aplicação do limite, as faixas de alíquota e o código.
+
+## 10. Previdência privada (PGBL e VGBL) (novo)
+
+O aplicativo **explica e não recomenda**: não diz que vale a pena aportar,
+nem indica valor, plano ou instituição. O PGBL permite deduzir os aportes da
+base de cálculo, **até 12% dos rendimentos computados na base**, só na
+declaração completa (*lido na fonte*: Lei 9.532/1997, art. 11); o imposto
+incide sobre o valor total no resgate. O VGBL não é dedutível. Confirme as
+regras e **avise se algum trecho soar como recomendação**.
 
 ---
 
@@ -194,9 +280,19 @@ precisamos que você valide:
 
 - Lei nº 9.249/1995 — isenção de dividendos (art. 10) e tributação de JCP
   (art. 9º)
+- Lei nº 9.250/1995 — art. 6º-A (retenção de 10% sobre dividendos acima de
+  R$ 50 mil por mês) e art. 16-A (imposto mínimo de altas rendas), ambos
+  incluídos pela Lei nº 15.270/2025; art. 22 (alienação de bens e direitos
+  até R$ 35 mil no mês)
 - Lei nº 9.430/1996 — regras de multa e juros por atraso
+- Lei nº 9.532/1997, art. 11 — limite de dedução do PGBL; Lei nº
+  11.053/2004 — regimes de tributação do resgate (candidata, a confirmar)
+- Lei nº 8.668/1993, arts. 18 e 20-D — alíquota de FII e Fiagro
 - Lei nº 11.033/2004 — regra geral de tributação de renda variável (ações,
-  FII, ETF), incluindo a isenção de R$ 20.000/mês em ações (art. 3º)
+  ETF), incluindo as alíquotas (art. 2º), a isenção de R$ 20.000/mês em ações
+  (art. 3º) e a tabela regressiva de renda fixa (art. 1º)
+- Medida Provisória nº 1.303/2025 — **perdeu a validade em 08/10/2025**; citada
+  só para registrar que 17,5% e 18% não são regra vigente
 - Lei nº 11.196/2005 — condições da isenção de rendimento de FII
 - Lei nº 11.311/2006 — isenção de LCI/LCA
 - Lei nº 12.431/2011 — isenção de debêntures incentivadas

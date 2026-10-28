@@ -9,7 +9,11 @@
   CDB, LC, entre outras) seguem uma **tabela regressiva pelo prazo** (a
   confirmar): **22,5%** até 180 dias, **20%** de 181 a 360, **17,5%** de 361 a
   720 e **15%** acima de 720 dias. O imposto é retido na fonte no resgate.
-- **Fonte oficial (a confirmar):** Lei nº 11.033/2004; IN RFB nº 1.585/2015.
+- **Fonte oficial (a confirmar):** Lei nº 11.033/2004, art. 1º; IN RFB nº
+  1.585/2015.
+- **Conferência interna (2026-10-25):** as quatro faixas foram lidas no art. 1º
+  da lei. O texto no Planalto marca a redação da MP nº 1.303/2025 como
+  "Vigência encerrada" (a MP perdeu a validade em 08/10/2025).
 - **Status:** ⬜ pendente
 - **Notas para o revisor:** confirmar as quatro faixas e prazos, e que a
   retenção ocorre na fonte no resgate.
@@ -19,7 +23,12 @@
 - **Regra (rascunho):** Letras de Crédito Imobiliário (LCI) e do Agronegócio
   (LCA) são, atualmente, **isentas de imposto de renda para a pessoa física**
   (a confirmar).
-- **Fonte oficial (a confirmar):** Lei nº 11.033/2004; Lei nº 11.311/2006.
+- **Fonte oficial (a confirmar):** Lei nº 11.033/2004, art. 3º, II (letras
+  hipotecárias, LCI e CRI); para a LCA, a fonte ainda precisa ser indicada.
+- **Conferência interna (2026-10-25):** a isenção de LCI e CRI foi lida no art.
+  3º, II da Lei 11.033. A da **LCA** é de norma conhecida, **não relida**. A
+  versão anterior citava a Lei 11.311/2006 como fonte da isenção de LCI/LCA, o
+  que **não foi confirmado**.
 - **Status:** ⬜ pendente
 - **Notas para o revisor:** confirmar a isenção de LCI/LCA para PF e se há
   carência mínima vigente.
