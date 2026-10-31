@@ -79,3 +79,15 @@ class LLMProvider(ABC):
     def provider_name(self) -> str:
         """Nome do provider para logging e identificação."""
         ...
+
+    def served_by(self) -> Dict[str, Any]:
+        """
+        Quem respondeu de fato, para a proveniência (ADR-004, 9.2). Num
+        provider simples é ele mesmo; o `FallbackLLMProvider` devolve o da
+        cadeia que respondeu, não o primário. O modelo vem do atributo
+        `_model` que os providers já guardam.
+        """
+        return {
+            "provider": self.provider_name,
+            "model": getattr(self, "_model", None),
+        }
