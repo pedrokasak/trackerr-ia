@@ -40,6 +40,9 @@ class FallbackLLMProvider(LLMProvider):
     operador visível fora deste wrapper.
     """
 
+    # Só delega: o span vem do provider que respondeu (TRA-222).
+    _trace_calls = False
+
     def __init__(self, primary: LLMProvider, fallback: LLMProvider) -> None:
         self._primary = primary
         self._fallback = fallback
