@@ -22,9 +22,14 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from benchmark.providers.base import LLMProvider
+from provenance import (
+    GenerationProvenance,
+    ProvenanceSource,
+    build_generation_provenance,
+)
 from style.didactic import didactic_rules
 from style.didactic import didactic_rules
 from models.models import (
@@ -421,10 +426,27 @@ Retorne APENAS JSON no formato:
 # ---------------------------------------------------------------------------
 
 
+# Identidade do prompt de narração na proveniência (ADR-004, 9.2). Sobe a
+# versão a cada mudança no texto de `build_insights_prompt`: o `sha256` prova
+# a entrada exata de cada geração, e a versão diz em que regra ela nasceu.
+INSIGHTS_PROMPT_ID = "insights.narration"
+INSIGHTS_PROMPT_VERSION = "1"
+
+
 @dataclass
 class _NarratedInsight:
     rationale: str
     action_label: str
+
+
+@dataclass
+class _Narration:
+    """O que a chamada ao LLM devolveu, e o que se sabe sobre ela."""
+
+    items: Dict[str, _NarratedInsight]
+    prompt: str
+    # ok | number_hallucination | llm_error | not_called
+    guard: str
 
 
 class InsightsService:
@@ -446,6 +468,25 @@ class InsightsService:
         producer: Optional[Callable[[UserProfile], List[InsightCandidate]]] = None,
         level: Optional[str] = None,
     ) -> List[Insight]:
+        insights, _ = await self.generate_with_provenance(
+            profile,
+            data_freshness_days=data_freshness_days,
+            sources=sources,
+            producer=producer,
+            level=level,
+        )
+        return insights
+
+    async def generate_with_provenance(
+        self,
+        profile: UserProfile,
+        *,
+        data_freshness_days: Optional[int] = None,
+        sources: Optional[List[InsightSource]] = None,
+        producer: Optional[Callable[[UserProfile], List[InsightCandidate]]] = None,
+        level: Optional[str] = None,
+        kind: str = "insight",
+    ) -> Tuple[List[Insight], Optional[GenerationProvenance]]:
         # TRA-135: `producer` permite migrar producers legados de
         # /api/hybrid-analysis (opportunity_radar, error_detection,
         # smart_feed, recommendations) reaproveitando o mesmo pipeline
@@ -454,10 +495,13 @@ class InsightsService:
         candidate_builder = producer or build_deterministic_evidence
         candidates = candidate_builder(profile)
         if not candidates:
-            return []
+            # Sem candidato não há chamada ao LLM e nada a registrar.
+            return [], None
 
         sources = sources or []
-        narrated = await self._narrate(candidates, level)
+        narration = await self._narrate(candidates, level)
+        narrated = narration.items
+        fallback_count = 0
 
         insights: List[Insight] = []
         for c in candidates:
@@ -468,6 +512,8 @@ class InsightsService:
                     action_label=c.action.label if c.action else "",
                 ),
             )
+            if not (c.id in narrated and narrated[c.id].rationale):
+                fallback_count += 1
             confidence = compute_confidence(
                 evidence_count=len(c.evidence),
                 source_count=len(sources),
@@ -495,14 +541,62 @@ class InsightsService:
                     sources=sources,
                 )
             )
-        return insights
+        provenance = self._provenance(
+            kind=kind,
+            profile=profile,
+            candidates=candidates,
+            insights=insights,
+            sources=sources,
+            data_freshness_days=data_freshness_days,
+            narration=narration,
+            fallback_count=fallback_count,
+        )
+        return insights, provenance
+
+    def _provenance(
+        self,
+        *,
+        kind: str,
+        profile: UserProfile,
+        candidates: List[InsightCandidate],
+        insights: List[Insight],
+        sources: List[InsightSource],
+        data_freshness_days: Optional[int],
+        narration: _Narration,
+        fallback_count: int,
+    ) -> GenerationProvenance:
+        """Só ids e hashes: nada do texto do prompt, da carteira ou da resposta."""
+        return build_generation_provenance(
+            kind=kind,
+            prompt_id=INSIGHTS_PROMPT_ID,
+            prompt_version=INSIGHTS_PROMPT_VERSION,
+            prompt_text=narration.prompt,
+            provider=self._llm,
+            portfolio_snapshot=profile.model_dump(),
+            evidence=[c.evidence for c in candidates],
+            sources=[
+                ProvenanceSource(
+                    source_type=src.source_type,
+                    source_id=src.source_id,
+                    knowledge_base=src.knowledge_base,
+                    as_of=src.as_of.isoformat() if src.as_of else None,
+                )
+                for src in sources
+            ],
+            data_freshness_days=data_freshness_days,
+            guard=narration.guard,
+            fallback_count=fallback_count,
+            confidence_values=[i.confidence.value for i in insights],
+            output=insights,
+            subject_ids=[i.id for i in insights],
+        )
 
     async def _narrate(
         self, candidates: List[InsightCandidate], level: Optional[str] = None
-    ) -> Dict[str, _NarratedInsight]:
+    ) -> _Narration:
         prompt = build_insights_prompt(candidates, level)
         if not prompt:
-            return {}
+            return _Narration(items={}, prompt="", guard="not_called")
         try:
             raw = await self._llm.analyze(prompt)
             parsed = parse_llm_insight_response(raw, candidates)
@@ -511,14 +605,19 @@ class InsightsService:
                 self._logger.warning(
                     "insight LLM devolveu numero fora da evidencia: %s", exc
                 )
-            return {}
+            return _Narration(items={}, prompt=prompt, guard="number_hallucination")
         except Exception as exc:  # pragma: no cover - falha de rede/provider
             if self._logger:
                 self._logger.error("falha ao chamar LLM para insights: %s", exc)
-            return {}
-        return {
-            k: _NarratedInsight(
-                rationale=v.get("rationale", ""), action_label=v.get("action_label", "")
-            )
-            for k, v in parsed.items()
-        }
+            return _Narration(items={}, prompt=prompt, guard="llm_error")
+        return _Narration(
+            items={
+                k: _NarratedInsight(
+                    rationale=v.get("rationale", ""),
+                    action_label=v.get("action_label", ""),
+                )
+                for k, v in parsed.items()
+            },
+            prompt=prompt,
+            guard="ok",
+        )

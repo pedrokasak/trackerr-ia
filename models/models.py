@@ -2,6 +2,8 @@ from datetime import date
 from typing import Annotated, Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
+from provenance import GenerationProvenance
+
 # ============================================
 # 1. MODELS
 # ============================================
@@ -351,6 +353,8 @@ class InsightsRequest(BaseModel):
 
 class InsightsResponse(BaseModel):
     insights: List[Insight]
+    # ADR-004, 9.2: uma entrada por chamada ao LLM. Campo novo e opcional.
+    provenance: List[GenerationProvenance] = Field(default_factory=list)
 
 
 # ============================================

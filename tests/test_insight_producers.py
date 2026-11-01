@@ -287,13 +287,20 @@ def test_hybrid_analysis_response_carrega_schema_version_e_insights_v2(monkeypat
     from benchmark.providers import factory as factory_module
     from main import app
 
+    class _AnalysisProvider:
+        provider_name = "stub-analysis"
+        _model = "stub-model"
+
     async def _fake_analyze(prompt: str):
         # Payload legado minimo; producers extendidos rodam em cima do
         # profile, nao dependem desta resposta.
-        return {"portfolio_assessment": "ok", "opportunity_radar": []}
+        return (
+            {"portfolio_assessment": "ok", "opportunity_radar": []},
+            _AnalysisProvider(),
+        )
 
     monkeypatch.setattr(
-        benchmark_module.AIAnalysisService, "analyze_with_ai", _fake_analyze
+        benchmark_module.AIAnalysisService, "analyze_with_ai_traced", _fake_analyze
     )
 
     class _StubProvider:

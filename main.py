@@ -55,6 +55,11 @@ from evals.judge import LlmJudge, build_judge_provider
 from evals.rag_sampler import sample_rag_items
 from evals.service import EvalItem, EvalService
 from insights.service import InsightsService
+from provenance import build_generation_provenance
+from benchmark.benchmark import (
+    HYBRID_ANALYSIS_PROMPT_ID,
+    HYBRID_ANALYSIS_PROMPT_VERSION,
+)
 from insights.producers import PRODUCERS as LEGACY_INSIGHT_PRODUCERS
 from benchmark.providers.factory import LLMFactory
 from rag.database import get_rag_session
@@ -132,7 +137,22 @@ async def hybrid_analysis(user_profile: UserProfile):
             user_profile, stock_analyses, fii_analyses
         )
 
-        ai_response = await AIAnalysisService.analyze_with_ai(prompt)
+        ai_response, ai_provider = await AIAnalysisService.analyze_with_ai_traced(
+            prompt
+        )
+        # ADR-004, 9.2: uma proveniência por chamada ao LLM. Só ids e hashes.
+        provenance = [
+            build_generation_provenance(
+                kind="analysis",
+                prompt_id=HYBRID_ANALYSIS_PROMPT_ID,
+                prompt_version=HYBRID_ANALYSIS_PROMPT_VERSION,
+                prompt_text=prompt,
+                provider=ai_provider,
+                portfolio_snapshot=user_profile.model_dump(),
+                evidence={"stocks": stock_analyses, "fiis": fii_analyses},
+                output=ai_response,
+            )
+        ]
 
         # TRA-135: producers migrados para o shape estendido de Insight
         # (evidencia deterministica, confianca calculada, acao com rota,
@@ -147,10 +167,14 @@ async def hybrid_analysis(user_profile: UserProfile):
         insights_v2: Dict[str, list] = {}
         for name, producer in LEGACY_INSIGHT_PRODUCERS.items():
             try:
-                produced = await insights_service.generate(
-                    user_profile, producer=producer
+                produced, produced_provenance = (
+                    await insights_service.generate_with_provenance(
+                        user_profile, producer=producer, kind=f"insight.{name}"
+                    )
                 )
                 insights_v2[name] = [i.model_dump() for i in produced]
+                if produced_provenance:
+                    provenance.append(produced_provenance)
             except Exception as producer_error:  # pragma: no cover
                 fastapi_logger.error(
                     f"Producer {name} falhou; seguindo com lista vazia: "
@@ -166,6 +190,7 @@ async def hybrid_analysis(user_profile: UserProfile):
             "fii_scores": fii_analyses,
             "ai_analysis": ai_response, # Novo nome para o payload completo
             "insights_v2": insights_v2,
+            "provenance": [p.model_dump(by_alias=True) for p in provenance],
             "timestamp": datetime.now().isoformat(),
         }
 
@@ -679,12 +704,15 @@ async def generate_insights(request: InsightsRequest):
             llm_provider=LLMFactory.get_provider(),
             logger=fastapi_logger,
         )
-        insights = await service.generate(
+        insights, provenance = await service.generate_with_provenance(
             request.user_profile,
             data_freshness_days=request.data_freshness_days,
             level=request.level,
         )
-        return {"insights": insights}
+        return {
+            "insights": insights,
+            "provenance": [provenance] if provenance else [],
+        }
     except Exception as e:
         fastapi_logger.error(f"Erro ao gerar insights: {e}")
         raise HTTPException(status_code=500, detail=str(e))

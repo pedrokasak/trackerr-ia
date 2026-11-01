@@ -43,12 +43,31 @@ class FallbackLLMProvider(LLMProvider):
     def __init__(self, primary: LLMProvider, fallback: LLMProvider) -> None:
         self._primary = primary
         self._fallback = fallback
+        # Quem respondeu a última chamada. A factory monta um wrapper por
+        # request, então o estado não é compartilhado entre usuários.
+        self._served: LLMProvider = primary
 
     @property
     def provider_name(self) -> str:
         return self._primary.provider_name
 
+    def served_by(self) -> Dict[str, Any]:
+        """
+        O provider que respondeu de fato (ADR-004, 9.1): `provider_name` segue
+        sendo o primário, e sem isto a auditoria registraria o modelo errado
+        quando o fallback respondeu.
+        """
+        describe = getattr(self._served, "served_by", None)
+        if callable(describe):
+            return describe()
+        # Provider estrutural (duck typing), sem o método.
+        return {
+            "provider": self._served.provider_name,
+            "model": getattr(self._served, "_model", None),
+        }
+
     async def analyze(self, prompt: str) -> Dict[str, Any]:
+        self._served = self._primary
         try:
             result = await self._primary.analyze(prompt)
             return result
@@ -61,6 +80,7 @@ class FallbackLLMProvider(LLMProvider):
                 self._fallback.provider_name,
             )
             result = await self._fallback.analyze(prompt)
+            self._served = self._fallback
             logger.info(
                 "[LLMFactory] Resposta veio do fallback '%s'.",
                 self._fallback.provider_name,

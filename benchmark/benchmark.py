@@ -1,5 +1,5 @@
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 
 from models.models import UserProfile, SimulationRequest, PortfolioDigestFactsInput
 from .providers.factory import LLMFactory
@@ -128,6 +128,12 @@ class SimulationService:
             "message": f"Em {req.years} anos, seu patrimônio pode chegar a R$ {neutral_fv:,.2f}."
         }
 
+# Identidade do prompt da análise híbrida na proveniência (ADR-004, 9.2). Sobe a
+# versão a cada mudança no texto de `prepare_analysis_prompt`.
+HYBRID_ANALYSIS_PROMPT_ID = "analysis.hybrid"
+HYBRID_ANALYSIS_PROMPT_VERSION = "1"
+
+
 class AIAnalysisService:
     @staticmethod
     def prepare_analysis_prompt(
@@ -192,6 +198,15 @@ class AIAnalysisService:
     async def analyze_with_ai(prompt: str) -> Dict[str, Any]:
         provider = LLMFactory.get_provider()
         return await provider.analyze(prompt)
+
+    @staticmethod
+    async def analyze_with_ai_traced(prompt: str) -> Tuple[Dict[str, Any], Any]:
+        """
+        Igual a `analyze_with_ai`, mas devolve também o provider que atendeu a
+        chamada, para a proveniência saber quem respondeu de fato (ADR-004, 9.1).
+        """
+        provider = LLMFactory.get_provider()
+        return await provider.analyze(prompt), provider
 
     @staticmethod
     def prepare_chat_prompt(
