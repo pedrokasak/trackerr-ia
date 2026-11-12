@@ -78,6 +78,9 @@ PROTECTED_ENDPOINTS = [
             "ranking": [],
         },
     ),
+    # ADR-007: sem token, qualquer um gastaria a conta de STT e TTS.
+    ("/api/speech/transcribe", {}),
+    ("/api/speech/synthesize", {"text": "Olá"}),
 ]
 
 

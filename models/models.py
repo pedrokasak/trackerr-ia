@@ -563,3 +563,21 @@ class EvalRunResponse(BaseModel):
     by_route: Dict[str, EvalSummary]
     by_intent: Dict[str, EvalSummary]
     guard: Dict[str, Optional[float]]
+
+
+# ============================================
+# VOZ DO COPILOTO (ADR-007)
+# ============================================
+
+class SpeechTranscribeResponse(BaseModel):
+    text: str
+    # Nada audível: o cliente mostra "Não ouvi sua pergunta".
+    no_speech: bool
+    provider: str
+    model: str
+
+
+class SpeechSynthesizeRequest(BaseModel):
+    # O server manda o texto já formatado para fala, com teto próprio
+    # (~600 caracteres); o limite aqui protege a conta de TTS.
+    text: str = Field(min_length=1, max_length=1200)
