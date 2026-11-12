@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.logger import logger as fastapi_logger
 from datetime import datetime
@@ -47,6 +47,8 @@ from models.models import (
     ChatPlanResponse,
     EvalRunRequest,
     EvalRunResponse,
+    SpeechSynthesizeRequest,
+    SpeechTranscribeResponse,
 )
 from benchmark.providers.base import ToolSpec
 from chat.tool_planner import SingleStepToolRuntime
@@ -79,17 +81,25 @@ from ri.knowledge_service import (
     RiDocumentIndexer,
     RiDocumentMeta,
 )
+from speech.base import SpeechProviderUnavailable
+from speech.factory import SpeechFactory
+from speech.transcript_cleanup import clean_transcript
 
 load_dotenv()
 
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.formparsers import MultiPartParser
 
 app = FastAPI(title="Hybrid Portfolio AI", version="2.5.0")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
     fastapi_logger.error(f"Erro de validação: {exc.errors()}")
+    # Upload de voz (multipart) traz o áudio do usuário: nunca vai para log
+    # nem volta na resposta (ADR-007, o áudio não é guardado).
+    if (request.headers.get("content-type") or "").startswith("multipart/"):
+        return JSONResponse(status_code=422, content={"detail": exc.errors()})
     fastapi_logger.error(f"Body: {await request.body()}")
     return JSONResponse(
         status_code=422,
@@ -716,6 +726,106 @@ async def generate_insights(request: InsightsRequest):
     except Exception as e:
         fastapi_logger.error(f"Erro ao gerar insights: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================
+# VOZ DO COPILOTO (ADR-007)
+# ============================================
+
+# 60s de gravação em m4a de celular dá ~1,8 MB; 3 MB deixa folga sem abrir
+# espaço para upload grande.
+SPEECH_MAX_BYTES = 3 * 1024 * 1024
+# O Starlette passa para arquivo temporário em disco todo upload acima de
+# 1 MB. Áudio de voz não pode tocar o disco (ADR-007), então o limite em
+# memória fica acima do teto de upload.
+MultiPartParser.spool_max_size = SPEECH_MAX_BYTES + 1024 * 1024
+SPEECH_MAX_TICKERS = 200
+SPEECH_AUDIO_TYPES = {
+    "audio/webm", "audio/ogg", "audio/mp4", "audio/m4a", "audio/x-m4a",
+    "audio/aac", "audio/mpeg", "audio/wav", "audio/x-wav",
+}
+
+
+@app.post(
+    "/api/speech/transcribe",
+    response_model=SpeechTranscribeResponse,
+    dependencies=[Depends(require_service_token)],
+)
+async def speech_transcribe(
+    file: UploadFile = File(...),
+    tickers: str = Form(default=""),
+    duration_ms: int | None = Form(default=None, ge=0, le=120_000),
+):
+    """
+    Transcreve a pergunta falada. `tickers` são os da carteira do usuário,
+    separados por vírgula: viram o `prompt` do Whisper e a base da correção
+    de ticker mal ouvido. O áudio fica só em memória e é descartado aqui.
+    """
+    mime = (file.content_type or "").split(";")[0].strip().lower()
+    if mime not in SPEECH_AUDIO_TYPES:
+        raise HTTPException(status_code=415, detail="unsupported_audio_type")
+    audio = await file.read(SPEECH_MAX_BYTES + 1)
+    if len(audio) > SPEECH_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="audio_too_large")
+    if not audio:
+        raise HTTPException(status_code=422, detail="empty_audio")
+
+    known = [t.strip().upper() for t in tickers.split(",") if t.strip()][:SPEECH_MAX_TICKERS]
+    try:
+        transcription = await SpeechFactory.get_stt().transcribe(
+            audio,
+            mime,
+            "pt",
+            known,
+            expected_seconds=(duration_ms / 1000) if duration_ms else None,
+        )
+    except (SpeechProviderUnavailable, ValueError) as e:
+        fastapi_logger.error(f"[speech] STT indisponível: {e}")
+        raise HTTPException(status_code=503, detail="speech_unavailable")
+    finally:
+        del audio
+
+    text = clean_transcript(transcription.text, known)
+    # Sem conteúdo da fala no log: só tamanho e provider.
+    fastapi_logger.info(
+        f"[speech] transcrição: provider={transcription.provider} chars={len(text)}"
+    )
+    return SpeechTranscribeResponse(
+        text=text,
+        no_speech=len(text) < 2,
+        provider=transcription.provider,
+        model=transcription.model,
+    )
+
+
+@app.post(
+    "/api/speech/synthesize",
+    dependencies=[Depends(require_service_token)],
+)
+async def speech_synthesize(request: SpeechSynthesizeRequest):
+    """
+    Gera a resposta falada em stream. O texto vem do server, já formatado
+    para fala, a partir de uma resposta que o próprio orquestrador produziu
+    (ADR-007, decisão 8): este endpoint nunca é exposto ao cliente final.
+    """
+    try:
+        speech = await SpeechFactory.get_tts().synthesize(request.text)
+    except (SpeechProviderUnavailable, ValueError) as e:
+        fastapi_logger.error(f"[speech] TTS indisponível: {e}")
+        raise HTTPException(status_code=503, detail="speech_unavailable")
+    fastapi_logger.info(
+        f"[speech] síntese: provider={speech.provider} model={speech.model} chars={len(request.text)}"
+    )
+    return StreamingResponse(
+        speech.chunks,
+        media_type=speech.mime_type,
+        headers={
+            "X-Speech-Provider": speech.provider,
+            "X-Speech-Model": speech.model,
+            "X-Speech-Voice": speech.voice,
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @app.get("/api/health")
